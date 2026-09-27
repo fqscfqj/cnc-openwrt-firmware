@@ -64,6 +64,13 @@ jobs:
           # 说明：getopt / losetup / blkid / mount 在 Debian/Ubuntu 上由 util-linux 提供
           #（没有独立的 getopt 包，写了会 apt 失败）；dosfstools、parted 为可选。
 
+      - name: 安装 QEMU（仅勾选冒烟时）
+        if: ${{ inputs.run_smoke }}
+        run: |
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 ovmf
+          qemu-system-x86_64 --version | head -1
+          ls /usr/share/OVMF/ | head -5
+
       - name: 缓存 SDK / ImageBuilder 压缩包
         uses: actions/cache@v4
         with:
@@ -101,6 +108,18 @@ jobs:
             out/*.layout.txt
             out/latest.json
           retention-days: 90
+
+      - name: 上传 QEMU 冒烟证据（勾选冒烟时才有）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-smoke-${{ steps.meta.outputs.tag }}
+          path: |
+            out/qemu-smoke-serial.log
+            out/qemu-smoke-results.txt
+            out/qemu-smoke-system-info.txt
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: 发布到滚动 Release（latest.json 地址永久不变）
         env:
@@ -144,6 +163,7 @@ jobs:
             echo "| SHA256 | \`$(cut -d' ' -f1 out/*.sha256 | head -1)\` |"
             echo "| 滚动 Release | ${{ steps.meta.outputs.rolling }} |"
             echo "| 离线校验 | 全部通过（见构建日志） |"
+            echo "| QEMU 冒烟 | ${{ inputs.run_smoke && '已运行，证据见 qemu-smoke artifact' || '未运行' }} |"
             echo
             echo "路由器上升级：LuCI → 系统 → **固件在线升级** → 检查更新 → 下载并校验 → 刷写并重启"
           } >> "$GITHUB_STEP_SUMMARY"

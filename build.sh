@@ -420,14 +420,21 @@ stage_verify() {
 
 stage_smoke() {
 	[ "$RUN_QEMU_SMOKE" = "1" ] || { log "跳过 QEMU 冒烟（RUN_QEMU_SMOKE=0）"; return 0; }
-	stage "smoke：QEMU 起机冒烟"
-	bash "$HERE/tests/qemu-smoke.sh" "$(ls -1 "$OUT"/*.img.gz | head -1)"
+	stage "smoke：QEMU 起机冒烟（引导镜像并从串口进系统跑断言）"
+	command -v qemu-system-x86_64 >/dev/null 2>&1 || \
+		warn "没装 qemu-system-x86_64，冒烟会失败（Debian/Ubuntu: apt install qemu-system-x86 ovmf）"
+	# CNC_QEMU_* 环境变量对脚本可覆盖：工作目录、内存、超时、是否进系统跑断言
+	bash "$HERE/tests/qemu-smoke.sh" "$(ls -1 "$OUT"/*.img.gz | head -1)" || die "QEMU 冒烟未通过"
 }
 
 # =============================================================================
 main() {
 	local stages=("$@")
-	[ ${#stages[@]} -eq 0 ] && stages=(preflight tools sources packages image verify)
+	if [ ${#stages[@]} -eq 0 ]; then
+		stages=(preflight tools sources packages image verify)
+		# RUN_QEMU_SMOKE=1（例如 CI 勾选 run_smoke）时，默认流程末尾自动加上冒烟
+		[ "$RUN_QEMU_SMOKE" = "1" ] && stages+=(smoke)
+	fi
 	local s
 	for s in "${stages[@]}"; do
 		case "$s" in
