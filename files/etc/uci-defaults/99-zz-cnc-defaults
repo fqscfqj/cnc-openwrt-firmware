@@ -28,8 +28,10 @@ while [ "$zi" -lt 32 ]; do
 	zi=$((zi + 1))
 done
 if [ -n "$wanzone" ]; then
+	# ★ uci get 对 list 选项输出是"空格分隔的一行"，所以必须 grep -w；
+	#   用 -x 会永远匹配不上，结果是每次都 add_list，把 wan6 加重复。
 	for net in wan6 wan_6; do
-		uci -q get "$wanzone.network" | grep -qx "$net" || uci add_list "$wanzone.network=$net"
+		uci -q get "$wanzone.network" | grep -qw "$net" || uci add_list "$wanzone.network=$net"
 	done
 else
 	logger -t cnc-defaults "找不到名为 wan 的 firewall zone，跳过 wan6/wan_6 登记"
@@ -39,7 +41,7 @@ fi
 # 给 dnsmasq 一组稳定的国内上游；wan 设了 peerdns=1，ISP 下发的 DNS 仍会一并使用。
 if uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
 	for dns in 223.5.5.5 119.29.29.29; do
-		uci -q get dhcp.@dnsmasq[0].server | grep -qx "$dns" || uci add_list dhcp.@dnsmasq[0].server="$dns"
+		uci -q get dhcp.@dnsmasq[0].server | grep -qw "$dns" || uci add_list dhcp.@dnsmasq[0].server="$dns"
 	done
 fi
 

@@ -15,7 +15,7 @@
 #   CNC_QEMU_WORK          工作目录（默认自动挑剩余空间够的目录；★不要用小 tmpfs）
 #   CNC_QEMU_OUT           结果与日志保存目录（默认 = 镜像所在目录）
 #   CNC_QEMU_MEM           内存 MB（默认 2048）
-#   CNC_QEMU_BOOT_TIMEOUT  等待系统启动完成的秒数（默认 300）
+#   CNC_QEMU_BOOT_TIMEOUT  等待系统启动完成的秒数（默认 480；没有 KVM 的纯软件模拟要留足）
 #   CNC_QEMU_EXEC          1=进系统跑断言；0=只看启动日志（默认 1）
 #   CNC_QEMU_KEEP          1=保留工作目录便于排障（默认 0）
 #   CNC_QEMU_DISK_IF       磁盘总线（默认 virtio；本镜像 CONFIG_VIRTIO_BLK=y，可改 ide）
@@ -181,7 +181,7 @@ kill -0 "$QPID" 2>/dev/null || { sed -n '1,40p' "$WORK/qemu-stdout.log"; die "QE
 
 # ------------------------------------------------------------------ 只看日志模式
 if [ "$EXEC_MODE" != "1" ]; then
-	BOOT_TIMEOUT="${CNC_QEMU_BOOT_TIMEOUT:-300}"
+	BOOT_TIMEOUT="${CNC_QEMU_BOOT_TIMEOUT:-480}"
 	log "等待启动完成（最长 ${BOOT_TIMEOUT}s，串口日志：$LOG）"
 	found=""
 	deadline=$(( SECONDS + BOOT_TIMEOUT ))
@@ -235,6 +235,7 @@ x|dhcpv6_server|test "$(uci -q get dhcp.lan.dhcpv6)" = server
 x|ra_server|test "$(uci -q get dhcp.lan.ra)" = server
 x|ra_slaac_on|test "$(uci -q get dhcp.lan.ra_slaac)" = 1
 x|firewall_wan6_zone|uci show firewall | grep -q wan_6
+x|firewall_wan6_once|test "$(uci -q show firewall | grep -c "network='wan6'")" = 1
 x|dns_aliyun|uci show dhcp | grep -q 223.5.5.5
 x|dns_dnspod|uci show dhcp | grep -q 119.29.29.29
 # --- LuCI：Argon 主题 + 中文 ---
@@ -283,8 +284,10 @@ x|ipv6_not_disabled|test "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6)" = 0
 x|zram_swap_active|grep -q zram /proc/swaps
 x|ubus_alive|ubus -S list | grep -q "^uci$"
 x|uhttpd_running|pgrep uhttpd
-x|luci_http_ok|wget -S -O /dev/null http://127.0.0.1/cgi-bin/luci/ 2>&1 | grep -qE "HTTP/[0-9.]+ [0-9][0-9][0-9]"
-x|luci_page_body|wget -qO- http://127.0.0.1/cgi-bin/luci/ 2>/dev/null | grep -qiE "luci|login|password|<html"
+# 注意：busybox wget 没有 -S（拿不到状态行），所以用"真的取到 LuCI 静态资源"来证明 Web 可用；
+#       uci get 对 list 选项是**空格分隔输出**，比较列表值时必须用 grep -w，不能用 -x。
+x|luci_static_js|test "$(wget -qO- http://127.0.0.1/luci-static/resources/luci.js 2>/dev/null | wc -c)" -gt 1000
+x|luci_cgi_http|test "$(wget -qO- http://127.0.0.1/cgi-bin/luci/ 2>/dev/null | wc -c)" -gt 0
 # --- 真实网络栈（QEMU 里 4 个口都在 ⇒ br-lan 应该真的起来） ---
 x|eth0_exists|ip -o link show eth0
 x|eth1_exists|ip -o link show eth1
@@ -302,7 +305,7 @@ cat > "$WORK/driver.py" <<'PYEOF'
 """QEMU 串口控制台驱动：等系统起来 -> 跑 checks.txt 里的断言 -> 收集系统信息 -> 关机。
 
 用法: driver.py <sock> <serial.log> <checks.txt> <results.txt> <qemu-pid>
-环境: CNC_QEMU_BOOT_TIMEOUT(300) CNC_QEMU_CHECK_TIMEOUT(20)
+环境: CNC_QEMU_BOOT_TIMEOUT(480) CNC_QEMU_CHECK_TIMEOUT(20)
 约定: 断言输出形如 "@@CK@@ <名字> OK|FAIL"（tty 会回显整行命令，所以只认"整行就是标记"的行）
 """
 import os
@@ -317,7 +320,7 @@ try:  # 让 ✔/✘ 在 GBK 控制台或 LANG=C 下也不会炸
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
-BOOT_TIMEOUT = float(os.environ.get("CNC_QEMU_BOOT_TIMEOUT", "300"))
+BOOT_TIMEOUT = float(os.environ.get("CNC_QEMU_BOOT_TIMEOUT", "480"))
 CHK_TIMEOUT = float(os.environ.get("CNC_QEMU_CHECK_TIMEOUT", "20"))
 qemu_pid = int(qemu_pid)
 
@@ -488,6 +491,11 @@ for h in harness:
     send(h)
 time.sleep(1.0)
 
+def shq(s):
+    """POSIX 单引号转义：断言命令里可以放心写引号、$()、| 等。"""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
 results = []
 timeouts = 0
 for line in open(checks_path):
@@ -495,7 +503,7 @@ for line in open(checks_path):
     if not line.strip() or line.lstrip().startswith("#"):
         continue
     kind, name, cmd = line.split("|", 2)
-    call = ("ckx '%s' '%s'" % (name, cmd)) if kind == "x" else ("ck '%s' %s" % (name, cmd))
+    call = ("ckx %s %s" % (shq(name), shq(cmd))) if kind == "x" else ("ck %s %s" % (shq(name), cmd))
     mark = len(text())
     send(call)
     m = wait_re(r"^@@CK@@ %s (OK|FAIL)\s*$" % re.escape(name), CHK_TIMEOUT, since=mark)
@@ -526,7 +534,11 @@ info_cmds = [
     "free",
     "apk list --installed 2>/dev/null | wc -l",
     "ubus call system board 2>/dev/null",
-    "wget -S -O /dev/null http://127.0.0.1/cgi-bin/luci/ 2>&1 | head -n 15",
+    "ls /www/luci-static/ | head -n 12",
+    "ls /www/luci-static/resources/ 2>/dev/null | head -n 8",
+    "wget -O- http://127.0.0.1/ 2>&1 | head -c 200; echo",
+    "wget -O- http://127.0.0.1/cgi-bin/luci/ 2>&1 | head -c 200; echo",
+    "wget -O- http://127.0.0.1/luci-static/resources/luci.js 2>/dev/null | wc -c",
     "logread 2>/dev/null | grep -iE 'cnc|firewall|uci-default' | tail -n 15",
     "logread 2>/dev/null | tail -n 15",
 ]
@@ -559,7 +571,7 @@ sys.exit(0 if failed == 0 and timed == 0 else 1)
 PYEOF
 
 log "进系统跑断言（串口日志：$LOG）"
-CNC_QEMU_BOOT_TIMEOUT="${CNC_QEMU_BOOT_TIMEOUT:-300}" \
+CNC_QEMU_BOOT_TIMEOUT="${CNC_QEMU_BOOT_TIMEOUT:-480}" \
 	python3 "$WORK/driver.py" "$SOCK" "$LOG" "$WORK/checks.txt" "$RES" "$QPID"
 rc=$?
 
