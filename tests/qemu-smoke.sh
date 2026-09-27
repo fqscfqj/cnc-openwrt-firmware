@@ -235,9 +235,13 @@ x|dhcpv6_server|test "$(uci -q get dhcp.lan.dhcpv6)" = server
 x|ra_server|test "$(uci -q get dhcp.lan.ra)" = server
 x|ra_slaac_on|test "$(uci -q get dhcp.lan.ra_slaac)" = 1
 x|firewall_wan6_zone|uci show firewall | grep -q wan_6
-x|firewall_wan6_once|test "$(uci -q show firewall | grep -c "network='wan6'")" = 1
+# uci show 的 list 只把第一个值挂在 `network=` 后面（network='wan' 'wan6'），
+# 所以判断"有没有"和"有没有重复"都要按词来数，不能直接 grep network='wan6'。
+x|firewall_wan6_once|test "$(uci -q show firewall | sed -n "s/.*network=//p" | tr " " "\n" | tr -d "'" | grep -cw wan6)" = 1
+x|firewall_wan_6_once|test "$(uci -q show firewall | sed -n "s/.*network=//p" | tr " " "\n" | tr -d "'" | grep -cw wan_6)" = 1
 x|dns_aliyun|uci show dhcp | grep -q 223.5.5.5
 x|dns_dnspod|uci show dhcp | grep -q 119.29.29.29
+x|dns_aliyun_once|test "$(uci -q show dhcp | sed -n "s/.*server=//p" | tr " " "\n" | tr -d "'" | grep -cw 223.5.5.5)" = 1
 # --- LuCI：Argon 主题 + 中文 ---
 x|argon_default_theme|test "$(uci -q get luci.main.mediaurlbase)" = /luci-static/argon
 x|argon_lang_zh_cn|test "$(uci -q get luci.main.lang)" = zh_cn
