@@ -1,0 +1,21 @@
+{
+	"luci-app-cnc-upgrade": {
+		"description": "Grant access to the CncTion firmware online upgrade tool",
+		"read": {
+			"ubus": {
+				"file": [ "exec", "stat", "read" ]
+			},
+			"file": {
+				"/usr/sbin/cnc-upgrade": [ "exec" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"file": [ "exec" ]
+			},
+			"file": {
+				"/usr/sbin/cnc-upgrade": [ "exec" ]
+			}
+		}
+	}
+}

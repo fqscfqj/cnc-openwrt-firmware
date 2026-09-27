@@ -1,0 +1,23 @@
+# CncTion 1338NP-12 预置系统配置
+# 说明：本文件与 /etc/config/network 同时存在，可阻止首启的 config_generate
+#       重新生成配置，因此这里的取值就是首启后的生效值。
+#       zram_size_mb / zram_comp_algo 由 zram-swap 的 zram.init 从 system.@system[0]
+#       读取（已核对 25.12 源码）。
+
+config system
+	option hostname 'cnc1338np12'
+	option timezone 'CST-8'
+	option zonename 'Asia/Shanghai'
+	option ttylogin '0'
+	option log_size '128'
+	option urandom_seed '0'
+	option compat_version '1.0'
+	option zram_size_mb '1239'
+	option zram_comp_algo 'zstd'
+
+config timeserver 'ntp'
+	option enabled '1'
+	option enable_server '0'
+	list server 'ntp.aliyun.com'
+	list server 'cn.pool.ntp.org'
+	list server 'time.cloudflare.com'

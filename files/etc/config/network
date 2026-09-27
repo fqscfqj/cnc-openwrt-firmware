@@ -1,0 +1,57 @@
+# CncTion 1338NP-12 预置网络配置
+#
+#   eth0 = WAN  (PPPoE)            ← 本机的"面板第 1 口"
+#   eth1 = IPTV (DHCP，不抢默认路由)
+#   eth2 + eth3 = LAN 桥 (br-lan)，192.168.2.1/24
+#
+# 说明 1：本文件不会被首启的 /bin/config_generate 覆盖 —— 该脚本在
+#         /etc/config/network 与 /etc/config/system 同时存在且非空时直接退出。
+# 说明 2：IPv6 默认开启：
+#         - wan  : ipv6 'auto' → 协商 IPv6CP，并由 netifd 自动生成动态接口
+#                  wan_6(proto dhcpv6，请求 PD 前缀) 来拿地址/前缀。
+#                  注意：老 Kwrt 配置里的 ipv6 '0' 会彻底关掉 IPv6CP，别写回去。
+#         - lan  : ip6assign '60' → 局域网客户端从委派前缀拿到 /64 全球地址。
+#         - iptv : 明确关闭 IPv6（IPTV 是 IPv4 组播，避免从 IPTV 网络拿到
+#                  默认路由/前缀干扰主网络）。
+# 说明 3：宽带账号密码在构建时按 BAKE_SECRETS 决定是否注入；为 0 时留空，
+#         首次登录 LuCI 在「网络 → 接口 → WAN」里手填一次即可，之后升级都会保留。
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	list ipaddr '127.0.0.1/8'
+
+config globals 'globals'
+	option dhcp_default_duid 'auto'
+	option ula_prefix 'auto'
+	option packet_steering '1'
+
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'eth2'
+	list ports 'eth3'
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ipaddr '192.168.2.1'
+	option netmask '255.255.255.0'
+	option ip6assign '60'
+
+config interface 'wan'
+	option device 'eth0'
+	option proto 'pppoe'
+	option username '__WAN_USERNAME__'
+	option password '__WAN_PASSWORD__'
+	option peerdns '1'
+	option ipv6 'auto'
+
+config interface 'iptv'
+	option device 'eth1'
+	option proto 'dhcp'
+	option defaultroute '0'
+	option peerdns '0'
+	option delegate '0'
+	option multipath 'off'
+	option ipv6 '0'

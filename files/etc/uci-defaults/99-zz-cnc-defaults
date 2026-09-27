@@ -1,0 +1,67 @@
+#!/bin/sh
+# CncTion 1338NP-12 首启收尾脚本（幂等，可重复执行）
+#
+# 命名用 99-zz- 前缀，确保在同目录其它 uci-defaults（如 Argon 的
+# 30_luci-theme-argon）之后执行，最后拍板主题与网络相关默认值。
+
+. /lib/functions.sh
+
+# ------------------------------------------------------------------ 防火墙
+# PPPoE 的 IPv6 动态接口名为 wan_6：由 ppp 包的 /lib/netifd/ppp6-up 通过
+# `ubus call network add_dynamic` 创建（读源码确认 name="${PPP_IPPARAM}_6"）。
+# 该脚本会尝试用 `fw3 -q network <父接口>` 继承父接口的 zone，但 fw3 由
+# firewall3 包提供、firewall4(fw4) 并不提供，所以这里显式把 wan6 与 wan_6
+# 都列入 wan zone。多列一个不存在的接口在 OpenWrt 里是被容忍的——官方默认
+# 配置本身就列了 wan6。
+if uci -q get firewall.wan >/dev/null 2>&1; then
+	for net in wan6 wan_6; do
+		uci -q get firewall.wan.network | grep -qx "$net" || uci add_list firewall.wan.network="$net"
+	done
+fi
+
+# ------------------------------------------------------------------ DNS 上游
+# 给 dnsmasq 一组稳定的国内上游；wan 设了 peerdns=1，ISP 下发的 DNS 仍会一并使用。
+if uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
+	for dns in 223.5.5.5 119.29.29.29; do
+		uci -q get dhcp.@dnsmasq[0].server | grep -qx "$dns" || uci add_list dhcp.@dnsmasq[0].server="$dns"
+	done
+fi
+
+# ------------------------------------------------------------------ IPv6 服务端
+# 对"静态地址的 lan"，odhcpd 自带的 odhcpd.defaults 本来就会打开 RA/DHCPv6；
+# 这里显式复写一遍，避免将来上游默认值变化导致局域网 IPv6 悄悄失效。
+if [ -e /proc/sys/net/ipv6 ]; then
+	uci -q get dhcp.lan >/dev/null 2>&1 || {
+		uci set dhcp.lan=dhcp
+		uci set dhcp.lan.interface=lan
+		uci set dhcp.lan.start=100
+		uci set dhcp.lan.limit=150
+		uci set dhcp.lan.leasetime=12h
+	}
+	uci set dhcp.lan.dhcpv6=server
+	uci set dhcp.lan.ra=server
+	uci set dhcp.lan.ra_slaac=1
+	uci -q delete dhcp.lan.ra_flags
+	uci add_list dhcp.lan.ra_flags=managed-config
+	uci add_list dhcp.lan.ra_flags=other-config
+fi
+
+# ------------------------------------------------------------------ 默认主题
+# 覆盖层里已写好，这里再拍板一次，防止上游 uci-defaults 抢改。
+uci set luci.themes.Argon=/luci-static/argon
+uci set luci.main.mediaurlbase=/luci-static/argon
+
+# ------------------------------------------------------------------ root 密码
+# 只有构建时 BAKE_SECRETS=1 才会带入 /etc/cnc-root-hash（SHA-512 crypt），
+# 写入 /etc/shadow 后立即删除该文件，不留在系统里。
+if [ -s /etc/cnc-root-hash ]; then
+	hash="$(cat /etc/cnc-root-hash)"
+	sed -i "s|^root:[^:]*:|root:${hash}:|" /etc/shadow
+	rm -f /etc/cnc-root-hash
+fi
+
+uci -q commit firewall
+uci -q commit dhcp
+uci -q commit luci
+
+exit 0

@@ -1,0 +1,21 @@
+# ---- 构建产物与工作目录（不入库）----
+out/
+.work/
+dl/
+
+# ---- 本地凭据（绝不提交）----
+secrets/*
+!secrets/.gitkeep
+
+# ---- 预编译 apk：由 build.sh 按 versions.env 里的 URL+sha256 下载，不入库 ----
+pkgs/prebuilt/**/*.apk
+
+# ---- 第三方源码副本：由 build.sh 按 versions.env 里的 commit 克隆，不入库 ----
+#      （pkgs/winsrc/local/ 是我们自己写的包，要入库）
+pkgs/winsrc/immortalwrt/
+pkgs/winsrc/gdy666/
+
+# ---- 编辑器/系统垃圾 ----
+*~
+.DS_Store
+Thumbs.db

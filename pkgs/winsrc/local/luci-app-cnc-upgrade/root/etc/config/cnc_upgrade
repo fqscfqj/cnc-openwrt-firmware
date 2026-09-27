@@ -1,0 +1,16 @@
+# 固件在线升级（luci-app-cnc-upgrade）
+#
+# url   ：latest.json 的地址。构建时 build.sh 会按 versions.env 的
+#         RELEASE_REPO / RELEASE_TAG 自动填成固定不变的那个地址。
+# proxy ：github 下载慢时的加速前缀（形如 https://ghfast.top/ ），留空表示直连。
+#         ghproxy 这类前缀是"整条 URL 拼在前面"，本包按这个约定拼接。
+# keep_config：1 = 刷写时保留配置（默认；/etc/config 与插件数据都会留下）
+#              0 = 清空配置重刷（相当于 sysupgrade -n）
+# auto_check ：1 = 进入页面自动检查更新（默认 0，避免每次开页面都联网）
+
+config cnc_upgrade 'settings'
+	option enabled '1'
+	option url 'https://github.com/CHANGE_ME/cnc-openwrt-firmware/releases/download/firmware-latest/latest.json'
+	option proxy ''
+	option auto_check '0'
+	option keep_config '1'

@@ -1,0 +1,20 @@
+# 升级时额外保留的"非 conffile 插件数据目录"。
+# 机制：sysupgrade 的 list_static_conffiles() 会读取 /lib/upgrade/keep.d/* 与
+#       /etc/sysupgrade.conf（已核对 25.12 源码），本机 apk 环境下 /etc/config/
+#       下的配置文件另由包 conffiles 自动保留。
+#
+# 逐个来源（便于日后核对）：
+#   /etc/openclash         OpenClash 配置、订阅、规则集、Clash 内核
+#   /etc/lucky             Lucky 运行数据
+#   /etc/config/lucky.daji Lucky 自带 Web 界面的配置目录
+#                          （lucky 的 Makefile 里 LUCKY_CONF_DIR 指到这里，
+#                            该目录不在 /etc/config 的常规 conffile 覆盖范围内）
+#   /etc/msd_lite          msd_lite 配置目录（含 msd_lite.conf.sample）
+#   Bandix 无需在此登记：bandix 包自带 /lib/upgrade/keep.d/bandix，登记 /usr/share/bandix
+#   WireGuard 无需在此登记：私钥与 peer 都在 /etc/config/network（conffile）
+
+/etc/openclash
+/etc/lucky
+/etc/config/lucky.daji
+/etc/msd_lite
+/etc/config/cnc_upgrade

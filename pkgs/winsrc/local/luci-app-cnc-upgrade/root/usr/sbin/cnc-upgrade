@@ -1,0 +1,231 @@
+#!/bin/sh
+# =============================================================================
+# cnc-upgrade —— CncTion 1338NP-12 固件在线升级（检查 / 下载 / 校验 / 刷写）
+#
+# 设计要点：
+#   * 所有逻辑都在本脚本里，LuCI 页面只负责调用与展示 ⇒ 可以脱离硬件做单测。
+#   * stdout 只输出 JSON（给页面解析），人类可读信息一律走 stderr。
+#   * 刷写前必须通过：sha256 校验 + 大小校验 + sysupgrade --test 镜像可用性检查。
+#
+# 子命令：
+#   check     比对本地 /etc/cnc-release 与远端 latest.json，输出可用性
+#   download  下载镜像到暂存目录并校验（含 sysupgrade --test）
+#   flash     在已校验的镜像上执行 sysupgrade（默认保留配置）
+#   clean     清空暂存目录
+#
+# 便于测试的环境变量覆盖：
+#   CNC_RELEASE_FILE  /etc/cnc-release            本地版本文件
+#   CNC_STAGE_DIR     /tmp/cnc-upgrade            暂存目录
+#   CNC_SYSUPGRADE    /sbin/sysupgrade            sysupgrade 路径（测试可替换成桩）
+#   CNC_URL           覆盖配置里的 latest.json 地址
+#   CNC_PROXY         覆盖配置里的加速前缀
+# =============================================================================
+set -eu
+
+CONF_NAME='cnc_upgrade'
+REL_FILE="${CNC_RELEASE_FILE:-/etc/cnc-release}"
+STAGE="${CNC_STAGE_DIR:-/tmp/cnc-upgrade}"
+SYSUP="${CNC_SYSUPGRADE:-/sbin/sysupgrade}"
+
+say() { printf '%s\n' "$*" >&2; }
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+uci_get() { uci -q get "$CONF_NAME.settings.$1" 2>/dev/null || true; }
+
+# ---------------------------------------------------------------- 配置读取
+conf_url()   { [ -n "${CNC_URL:-}" ] && { printf '%s' "$CNC_URL"; return; }; uci_get url; }
+conf_proxy() { [ -n "${CNC_PROXY:-}" ] && { printf '%s' "$CNC_PROXY"; return; }; uci_get proxy; }
+conf_keep()  { [ "$(uci_get keep_config)" = "0" ] && printf '0' || printf '1'; }
+
+# 给 github 下载套加速前缀（ghproxy 这类前缀是"整条 URL 拼在前面"）
+wrap_url() { # <url>
+	local p; p="$(conf_proxy)"
+	if [ -n "$p" ]; then printf '%s%s' "$p" "$1"; else printf '%s' "$1"; fi
+}
+
+# ---------------------------------------------------------------- 本地版本
+# /etc/cnc-release 形如：
+#   OPENWRT_VERSION=25.12.5
+#   FIRMWARE_BUILD=r1
+rel_field() { # <KEY>
+	[ -s "$REL_FILE" ] || return 1
+	sed -n "s/^$1=//p" "$REL_FILE" | head -1
+}
+
+# ---------------------------------------------------------------- JSON 取值
+jget() { # <file> <expr>
+	jsonfilter -i "$1" -e "$2" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------- 取 latest.json
+fetch_latest() { # <dest>
+	local url; url="$(conf_url)"
+	[ -n "$url" ] || die "未配置升级地址（uci set ${CONF_NAME}.settings.url=...）"
+	mkdir -p "$STAGE"
+	say "获取 $url"
+	curl -fsSL --connect-timeout 15 --retry 2 -o "$1.part" "$(wrap_url "$url")" \
+		|| die "下载 latest.json 失败（检查网络或 ${CONF_NAME}.settings.proxy）"
+	mv -f "$1.part" "$1"
+	[ -s "$1" ] || die "latest.json 为空"
+	jget "$1" '@.schema' >/dev/null 2>&1 || true
+	[ "$(jget "$1" '@.sha256')" != "" ] || die "latest.json 内容不合法（缺少 sha256）"
+}
+
+# ---------------------------------------------------------------- 版本比较
+# 输出 same / upgrade / downgrade / unknown
+# 用 awk 逐段比较点分数字版本（busybox 的 sort 不一定带 -V，所以不用 sort -V）
+ver_gt() { # $1 > $2 时返回 0
+	awk -v a="$1" -v b="$2" 'BEGIN {
+		n = split(a, x, "."); m = split(b, y, ".");
+		for (i = 1; i <= n || i <= m; i++) {
+			xi = (i <= n ? x[i] + 0 : 0);
+			yi = (i <= m ? y[i] + 0 : 0);
+			if (xi > yi) exit 0;
+			if (xi < yi) exit 1;
+		}
+		exit 1;
+	}'
+}
+
+cmp_ver() { # <本地> <远端>
+	local a="$1" b="$2"
+	[ "$a" = "$b" ] && { printf 'same'; return; }
+	[ -z "$a" ] && { printf 'unknown'; return; }
+	if ver_gt "$b" "$a"; then printf 'upgrade'; else printf 'downgrade'; fi
+}
+
+# ---------------------------------------------------------------- check
+do_check() {
+	local js="$STAGE/latest.json"
+	local lv lb rv rb ravail dir
+	lv="$(rel_field OPENWRT_VERSION || true)"; lb="$(rel_field FIRMWARE_BUILD || true)"
+	fetch_latest "$js"
+	rv="$(jget "$js" '@.openwrt_version')"; rb="$(jget "$js" '@.firmware_build')"
+	[ -n "$rv" ] || die "远端 latest.json 缺少 openwrt_version"
+
+	if [ "$lv" = "$rv" ] && [ "$lb" = "$rb" ]; then
+		ravail=0; dir=same
+	else
+		ravail=1
+		if [ "$lv" = "$rv" ]; then
+			dir=upgrade   # 同版本不同构建号 = 新固件
+		else
+			dir="$(cmp_ver "$lv" "$rv")"
+		fi
+	fi
+
+	cat <<EOF
+{
+  "ok": true,
+  "current": { "openwrt_version": "$lv", "firmware_build": "$lb" },
+  "remote": {
+    "openwrt_version": "$rv",
+    "firmware_build": "$rb",
+    "kver": "$(jget "$js" '@.kver')",
+    "file": "$(jget "$js" '@.file')",
+    "url": "$(jget "$js" '@.url')",
+    "sha256": "$(jget "$js" '@.sha256')",
+    "size": $(jget "$js" '@.size' 2>/dev/null || echo 0),
+    "built_at": "$(jget "$js" '@.built_at')",
+    "notes": "$(jget "$js" '@.notes')"
+  },
+  "available": $ravail,
+  "direction": "$dir"
+}
+EOF
+}
+
+# ---------------------------------------------------------------- download
+do_download() {
+	local js="$STAGE/latest.json"
+	local file url sha size img got_size got_sha
+	[ -s "$js" ] || fetch_latest "$js"
+	file="$(jget "$js" '@.file')"; url="$(jget "$js" '@.url')"
+	sha="$(jget "$js" '@.sha256')"; size="$(jget "$js" '@.size')"
+	[ -n "$file" ] && [ -n "$url" ] && [ -n "$sha" ] || die "latest.json 缺少 file/url/sha256"
+	img="$STAGE/$file"
+
+	# 已有且校验通过就直接复用
+	if [ -s "$img" ]; then
+		got_sha="$(sha256sum "$img" | cut -d' ' -f1)"
+		if [ "$got_sha" = "$sha" ]; then
+			say "已存在且校验通过：$img"
+		else
+			say "已存在的镜像校验不符，重新下载"; rm -f "$img"
+		fi
+	fi
+
+	if [ ! -s "$img" ]; then
+		say "下载镜像 $(wrap_url "$url")"
+		curl -fL --connect-timeout 20 --retry 2 -o "$img.part" "$(wrap_url "$url")" \
+			|| { rm -f "$img.part"; die "镜像下载失败"; }
+		mv -f "$img.part" "$img"
+	fi
+
+	# 校验 1：sha256（防坏包/防串包）
+	got_sha="$(sha256sum "$img" | cut -d' ' -f1)"
+	[ "$got_sha" = "$sha" ] || { rm -f "$img"; die "sha256 校验失败：期望 $sha 实际 $got_sha"; }
+	say "sha256 校验通过"
+
+	# 校验 2：大小（sha256 之外的独立防线）
+	if [ -n "$size" ] && [ "$size" != "0" ]; then
+		got_size="$(wc -c < "$img" | tr -d ' ')"
+		[ "$got_size" = "$size" ] || { rm -f "$img"; die "文件大小不符：期望 $size 实际 $got_size"; }
+		say "大小校验通过（$got_size 字节）"
+	fi
+
+	# 校验 3：让 sysupgrade 自己判一次（--test 会走 platform_check_image）
+	if [ -x "$SYSUP" ] || command -v "$SYSUP" >/dev/null 2>&1; then
+		say "执行镜像可用性检查：$SYSUP --test"
+		"$SYSUP" --test "$img" >/dev/null 2>&1 || { rm -f "$img"; die "sysupgrade --test 未通过（镜像与设备不匹配）"; }
+		say "镜像可用性检查通过"
+	fi
+
+	cat <<EOF
+{ "ok": true, "file": "$file", "path": "$img", "sha256": "$got_sha", "size": ${got_size:-0} }
+EOF
+}
+
+# ---------------------------------------------------------------- flash
+do_flash() {
+	local js="$STAGE/latest.json"
+	local file img sha got_sha keep args
+	[ -s "$js" ] || fetch_latest "$js"
+	file="$(jget "$js" '@.file')"; sha="$(jget "$js" '@.sha256')"
+	img="$STAGE/$file"
+	[ -s "$img" ] || { say "尚未下载镜像，先执行 download"; do_download >/dev/null; }
+	got_sha="$(sha256sum "$img" | cut -d' ' -f1)"
+	[ "$got_sha" = "$sha" ] || die "刷写前校验失败，已中止（sha256 不符）"
+
+	keep="$(conf_keep)"
+	args=""
+	[ "$keep" = "0" ] && args="-n"
+	say "开始刷写：$SYSUP $args $img（保留配置=$( [ "$keep" = 1 ] && echo 是 || echo 否 )）"
+	cat <<EOF
+{ "ok": true, "started": true, "file": "$file", "keep_config": $keep }
+EOF
+	# sysupgrade 成功后设备会立即重启，所以下面这行通常不会返回
+	exec "$SYSUP" $args "$img"
+}
+
+# ---------------------------------------------------------------- clean
+do_clean() { rm -rf "$STAGE"; printf '{ "ok": true }\n'; }
+
+usage() {
+	cat <<'EOF'
+用法: cnc-upgrade <check|download|flash|clean>
+
+  check     检查是否有新固件（输出 JSON）
+  download  下载并校验镜像（sha256 + 大小 + sysupgrade --test）
+  flash     刷写已校验的镜像（默认保留配置）
+  clean     清空暂存目录（/tmp/cnc-upgrade）
+EOF
+}
+
+case "${1:-}" in
+	check)    do_check ;;
+	download) do_download ;;
+	flash)    do_flash ;;
+	clean)    do_clean ;;
+	-h|--help|"") usage; [ -n "${1:-}" ] || exit 2 ;;
+	*) usage; exit 2 ;;
+esac

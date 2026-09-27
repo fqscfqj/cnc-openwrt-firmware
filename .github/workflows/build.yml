@@ -1,0 +1,145 @@
+name: build-firmware
+
+# =============================================================================
+# CncTion 1338NP-12 固件：构建 → 离线校验 → 发布
+#
+# 产物发布在两个 Release 上：
+#   * 滚动 Release（tag = versions.env 的 RELEASE_TAG，默认 firmware-latest）
+#     承载 latest.json + 镜像 + sha256 + manifest ⇒ 路由器"网页一键在线升级"
+#     读取的 URL 永久不变。
+#   * 按版本 Release（tag 形如 v25.12.5-r1）⇒ 便于回滚到任意旧版本。
+#
+# 手动触发时可覆盖 OpenWrt 版本与固件构建号，例如升级到 25.12.7：
+#   Actions → build-firmware → Run workflow → openwrt_version=25.12.7, firmware_build=r2
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: 'OpenWrt 版本（留空则用 versions.env 里的值）'
+        required: false
+        default: ''
+      firmware_build:
+        description: '固件构建号（留空则用 versions.env 里的值）'
+        required: false
+        default: ''
+      run_smoke:
+        description: '跑 QEMU 冒烟测试（慢，约 5–15 分钟）'
+        type: boolean
+        default: false
+  push:
+    branches: [ main ]
+    paths:
+      - 'versions.env'
+      - 'build.sh'
+      - 'verify.sh'
+      - 'files/**'
+      - 'pkgs/winsrc/local/**'
+      - 'tests/**'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gawk getopt unzip file rsync wget git python3 \
+            zstd libncurses-dev libssl-dev dosfstools parted
+
+      - name: 缓存 SDK / ImageBuilder 压缩包
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: owrt-dl-${{ hashFiles('versions.env') }}
+          restore-keys: owrt-dl-
+
+      - name: 单元测试（cnc-upgrade 升级逻辑）
+        run: bash tests/run.sh
+
+      - name: 构建固件（含离线校验）
+        env:
+          OPENWRT_VERSION: ${{ inputs.openwrt_version }}
+          FIRMWARE_BUILD: ${{ inputs.firmware_build }}
+          RUN_QEMU_SMOKE: ${{ inputs.run_smoke && '1' || '0' }}
+        run: bash build.sh
+
+      - name: 读取构建结果
+        id: meta
+        run: |
+          . ./versions.env
+          echo "tag=v${OPENWRT_VERSION}-${FIRMWARE_BUILD}" >> "$GITHUB_OUTPUT"
+          echo "rolling=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: 上传构建产物（保留 90 天）
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ steps.meta.outputs.tag }}
+          path: |
+            out/*.img.gz
+            out/*.sha256
+            out/*.manifest
+            out/*.layout.txt
+            out/latest.json
+          retention-days: 90
+
+      - name: 发布到滚动 Release（latest.json 地址永久不变）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${{ steps.meta.outputs.rolling }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "最新固件（滚动更新）" \
+              --notes "本 Release 的资产会被每次构建覆盖。latest.json 的下载地址固定不变，路由器『固件在线升级』页面读的就是它。"
+          fi
+          gh release upload "$TAG" \
+            out/*.img.gz out/*.sha256 out/*.manifest out/latest.json \
+            --clobber
+
+      - name: 发布按版本 Release（便于回滚）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/*.img.gz out/*.sha256 out/*.manifest out/latest.json --clobber
+          else
+            gh release create "$TAG" \
+              --title "OpenWrt $TAG for CncTion 1338NP-12" \
+              --notes "包含 OpenClash / Lucky / vlmcsd / msd_lite / Bandix / Argon / WireGuard / IPv6，eth0=WAN。回滚：从本 Release 下载镜像后走 LuCI『备份/刷写固件』或用 sysupgrade。" \
+              out/*.img.gz out/*.sha256 out/*.manifest out/latest.json
+          fi
+
+      - name: 汇总
+        run: |
+          {
+            echo "## 固件构建完成"
+            echo
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 版本 | ${{ steps.meta.outputs.tag }} |"
+            echo "| 镜像 | $(basename "$(ls out/*.img.gz | head -1)") |"
+            echo "| SHA256 | \`$(cut -d' ' -f1 out/*.sha256 | head -1)\` |"
+            echo "| 滚动 Release | ${{ steps.meta.outputs.rolling }} |"
+            echo "| 离线校验 | 全部通过（见构建日志） |"
+            echo
+            echo "路由器上升级：LuCI → 系统 → **固件在线升级** → 检查更新 → 下载并校验 → 刷写并重启"
+          } >> "$GITHUB_STEP_SUMMARY"
