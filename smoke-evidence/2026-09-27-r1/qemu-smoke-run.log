@@ -1,0 +1,99 @@
+== 解压镜像到 /mnt/cnc-qemu.7l7AXp/disk.img（约 4160MB，请稍候） ==
+  ✔ 已解压：4.1G
+  ✔ /dev/kvm 可用 ⇒ 使用 KVM 加速
+== 启动 QEMU（KVM（快），磁盘总线 virtio，4×e1000e，内存 2048MB） ==
+== 进系统跑断言（串口日志：/mnt/cnc-qemu.7l7AXp/serial.log） ==
+  等待系统启动完成（最长 480s）…
+  ✔ 控制台已就绪（识别到：Please press Enter to activate this console）
+  ✔ 串口 shell 可执行命令
+  ✔ openwrt_release (OK)
+  ✔ version_25_12_5 (OK)
+  ✔ kernel_6_12_94 (OK)
+  ✔ hostname (OK)
+  ✔ timezone_cst8 (OK)
+  ✔ ttylogin_off (OK)
+  ✔ wan_proto_pppoe (OK)
+  ✔ wan_device_eth0 (OK)
+  ✔ wan_ipv6_auto (OK)
+  ✔ iptv_device_eth1 (OK)
+  ✔ iptv_ipv6_off (OK)
+  ✔ iptv_no_defaultroute (OK)
+  ✔ lan_ip_192_168_2_1 (OK)
+  ✔ lan_ip6assign_60 (OK)
+  ✔ brlan_ports_cfg_eth2 (OK)
+  ✔ brlan_ports_cfg_eth3 (OK)
+  ✔ packet_steering_on (OK)
+  ✔ dhcpv6_server (OK)
+  ✔ ra_server (OK)
+  ✔ ra_slaac_on (OK)
+  ✔ firewall_wan6_zone (OK)
+  ✔ firewall_wan6_once (OK)
+  ✔ firewall_wan_6_once (OK)
+  ✔ dns_aliyun (OK)
+  ✔ dns_dnspod (OK)
+  ✔ dns_aliyun_once (OK)
+  ✔ argon_default_theme (OK)
+  ✔ argon_lang_zh_cn (OK)
+  ✔ argon_dir (OK)
+  ✔ argon_css_files (OK)
+  ✔ openclash_init (OK)
+  ✔ openclash_dir (OK)
+  ✔ openclash_luci_files (OK)
+  ✔ lucky_init (OK)
+  ✔ lucky_bin (OK)
+  ✔ msd_lite_init (OK)
+  ✔ msd_lite_bin (OK)
+  ✔ vlmcsd_init (OK)
+  ✔ vlmcsd_bin (OK)
+  ✔ vlmcsd_ini (OK)
+  ✔ bandix_init (OK)
+  ✔ bandix_bin (OK)
+  ✔ bandix_datadir (OK)
+  ✔ bandix_keepd (OK)
+  ✔ wg_bin (OK)
+  ✔ kmod_wireguard_ko (OK)
+  ✔ wg_kmod_pkg (OK)
+  ✔ wg_tools_pkg (OK)
+  ✔ wg_luci_pkg (OK)
+  ✔ wg_luci_files (OK)
+  ✔ cnc_upgrade_bin (OK)
+  ✔ cnc_upgrade_menu (OK)
+  ✔ cnc_upgrade_acl (OK)
+  ✔ cnc_upgrade_view (OK)
+  ✔ cnc_upgrade_keepd (OK)
+  ✔ cnc_release_file (OK)
+  ✔ cnc_upgrade_usage (OK)
+  ✔ kmod_igc_ko (OK)
+  ✔ kmod_tun_ko (OK)
+  ✔ kmod_zram_ko (OK)
+  ✔ kmod_e1000e_ko (OK)
+  ✔ dnsmasq_full (OK)
+  ✔ dnsmasq_replaced (OK)
+  ✔ ipv6_not_disabled (OK)
+  ✔ zram_swap_active (OK)
+  ✔ ubus_alive (OK)
+  ✔ uhttpd_running (OK)
+  ✔ luci_static_js (OK)
+  ✔ luci_web_root (OK)
+  ✔ luci_cgi_answers (OK)
+  ✔ eth0_exists (OK)
+  ✔ eth1_exists (OK)
+  ✔ eth3_exists (OK)
+  ✔ brlan_exists (OK)
+  ✔ brlan_ipv4 (OK)
+  ✔ brlan_port_eth2_up (OK)
+  ✔ brlan_ipv6_ll (OK)
+  ✔ eth0_not_in_bridge (OK)
+  ✔ eth1_not_in_bridge (OK)
+  收集系统信息…
+  通过 79 项，失败 0 项，超时 0 项
+
+== 结果 ==
+  boot_marker=Please press Enter to activate this console
+  checks_pass=79
+  checks_fail=0
+  断言共 79 项：通过 79，失败 0，超时 0
+  ✔ QEMU 冒烟通过
+  串口日志：/home/fqscfqj/smoke/qemu-smoke-serial.log
+  断言结果：/home/fqscfqj/smoke/qemu-smoke-results.txt
+  系统信息：/home/fqscfqj/smoke/qemu-smoke-system-info.txt

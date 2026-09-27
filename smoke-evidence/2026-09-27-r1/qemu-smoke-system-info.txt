@@ -1,0 +1,218 @@
+root@cnc1338np12:~# uname -a
+Linux cnc1338np12 6.12.94 #0 SMP Mon Jun 29 12:59:20 2026 x86_64 GNU/Linux
+root@cnc1338np12:~# cat /etc/openwrt_release 2>/dev/null
+DISTRIB_ID='OpenWrt'
+DISTRIB_RELEASE='25.12.5'
+DISTRIB_REVISION='r33051-f5dae5ece4'
+DISTRIB_TARGET='x86/64'
+DISTRIB_ARCH='x86_64'
+DISTRIB_DESCRIPTION='OpenWrt 25.12.5 r33051-f5dae5ece4'
+DISTRIB_TAINTS=''
+root@cnc1338np12:~# cat /etc/cnc-release 2>/dev/null
+OPENWRT_VERSION=25.12.5
+FIRMWARE_BUILD=r1
+FIRMWARE_NAME=cnc1338np12
+KVER=6.12.94
+TARGET=x86/64
+KERNEL_PARTSIZE=64
+ROOTFS_PARTSIZE=4096
+BUILT_AT=2026-09-27T14:58:55Z
+BUILT_BY=local
+root@cnc1338np12:~# uci show network
+network.loopback=interface
+network.loopback.device='lo'
+network.loopback.proto='static'
+network.loopback.ipaddr='127.0.0.1/8'
+network.globals=globals
+network.globals.dhcp_default_duid='00041b31a0de7a564aaa9af959ca27f1d695'
+network.globals.ula_prefix='fd01:9358:1333::/48'
+network.globals.packet_steering='1'
+network.@device[0]=device
+network.@device[0].name='br-lan'
+network.@device[0].type='bridge'
+network.@device[0].ports='eth2' 'eth3'
+network.lan=interface
+network.lan.device='br-lan'
+network.lan.proto='static'
+network.lan.ipaddr='192.168.2.1'
+network.lan.netmask='255.255.255.0'
+network.lan.ip6assign='60'
+network.wan=interface
+network.wan.device='eth0'
+network.wan.proto='pppoe'
+network.wan.peerdns='1'
+network.wan.ipv6='auto'
+network.iptv=interface
+network.iptv.device='eth1'
+network.iptv.proto='dhcp'
+network.iptv.defaultroute='0'
+network.iptv.peerdns='0'
+network.iptv.delegate='0'
+network.iptv.multipath='off'
+network.iptv.ipv6='0'
+root@cnc1338np12:~# uci show firewall | head -n 40
+firewall.@defaults[0]=defaults
+firewall.@defaults[0].syn_flood='1'
+firewall.@defaults[0].input='REJECT'
+firewall.@defaults[0].output='ACCEPT'
+firewall.@defaults[0].forward='REJECT'
+firewall.@zone[0]=zone
+firewall.@zone[0].name='lan'
+firewall.@zone[0].network='lan'
+firewall.@zone[0].input='ACCEPT'
+firewall.@zone[0].output='ACCEPT'
+firewall.@zone[0].forward='ACCEPT'
+firewall.@zone[1]=zone
+firewall.@zone[1].name='wan'
+firewall.@zone[1].network='wan' 'wan6' 'wan_6'
+firewall.@zone[1].input='REJECT'
+firewall.@zone[1].output='ACCEPT'
+firewall.@zone[1].forward='DROP'
+firewall.@zone[1].masq='1'
+firewall.@zone[1].mtu_fix='1'
+firewall.@forwarding[0]=forwarding
+firewall.@forwarding[0].src='lan'
+firewall.@forwarding[0].dest='wan'
+firewall.@rule[0]=rule
+firewall.@rule[0].name='Allow-DHCP-Renew'
+firewall.@rule[0].src='wan'
+firewall.@rule[0].proto='udp'
+firewall.@rule[0].dest_port='68'
+firewall.@rule[0].target='ACCEPT'
+firewall.@rule[0].family='ipv4'
+firewall.@rule[1]=rule
+firewall.@rule[1].name='Allow-Ping'
+firewall.@rule[1].src='wan'
+firewall.@rule[1].proto='icmp'
+firewall.@rule[1].icmp_type='echo-request'
+firewall.@rule[1].family='ipv4'
+firewall.@rule[1].target='ACCEPT'
+firewall.@rule[2]=rule
+firewall.@rule[2].name='Allow-IGMP'
+firewall.@rule[2].src='wan'
+firewall.@rule[2].proto='igmp'
+root@cnc1338np12:~# cat /etc/config/uhttpd
+config uhttpd 'main'
+	list listen_http '0.0.0.0:80'
+	list listen_http '[::]:80'
+	list listen_https '0.0.0.0:443'
+	list listen_https '[::]:443'
+	option redirect_https '0'
+	option home '/www'
+	option rfc1918_filter '1'
+	option max_requests '50'
+	option max_connections '100'
+	option cert '/etc/uhttpd.crt'
+	option key '/etc/uhttpd.key'
+	option cgi_prefix '/cgi-bin'
+	list lua_prefix '/cgi-bin/luci=/usr/lib/lua/luci/sgi/uhttpd.lua'
+	option script_timeout '3600'
+	option network_timeout '30'
+	option http_keepalive '20'
+	option tcp_keepalive '1'
+	option ubus_prefix '/ubus'
+config cert 'defaults'
+	option days '397'
+	option key_type 'ec'
+	option bits '2048'
+	option ec_curve 'P-256'
+	option country 'ZZ'
+	option state 'Somewhere'
+	option location 'Unknown'
+	option commonname 'OpenWrt'
+root@cnc1338np12:~# ls /etc/uci-defaults/
+root@cnc1338np12:~# ip -o link show
+1: [1;36mlo: [0m<LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000\    link/loopback [1;33m00:00:00:00:00:00[0m brd [1;33m00:00:00:00:00:00[0m
+2: [1;36meth0: [0m<BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state [1;32mUP [0mmode DEFAULT group default qlen 1000\    link/ether [1;33m52:54:00:12:34:56[0m brd [1;33mff:ff:ff:ff:ff:ff[0m
+3: [1;36meth1: [0m<BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state [1;32mUP [0mmode DEFAULT group default qlen 1000\    link/ether [1;33m52:54:00:12:34:57[0m brd [1;33mff:ff:ff:ff:ff:ff[0m
+4: [1;36meth2: [0m<BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel master br-lan state [1;32mUP [0mmode DEFAULT group default qlen 1000\    link/ether [1;33m52:54:00:12:34:58[0m brd [1;33mff:ff:ff:ff:ff:ff[0m
+5: [1;36meth3: [0m<BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel master br-lan state [1;32mUP [0mmode DEFAULT group default qlen 1000\    link/ether [1;33m52:54:00:12:34:59[0m brd [1;33mff:ff:ff:ff:ff:ff[0m
+6: [1;36mbr-lan: [0m<BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state [1;32mUP [0mmode DEFAULT group default qlen 1000\    link/ether [1;33m52:54:00:12:34:58[0m brd [1;33mff:ff:ff:ff:ff:ff[0m
+root@cnc1338np12:~# ip -4 -o addr show
+1: lo    inet [1;35m127.0.0.1[0m/8 scope host lo\       valid_lft forever preferred_lft forever
+3: eth1    inet [1;35m10.0.2.15[0m/24 brd [1;35m10.0.2.255 [0mscope global eth1\       valid_lft forever preferred_lft forever
+6: br-lan    inet [1;35m192.168.2.1[0m/24 brd [1;35m192.168.2.255 [0mscope global br-lan\       valid_lft forever preferred_lft forever
+root@cnc1338np12:~# ip -6 -o addr show | head -n 12
+1: lo    inet6 ::1/128 scope host proto kernel_lo \       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::5054:ff:fe12:3456/64 scope link proto kernel_ll \       valid_lft forever preferred_lft forever
+6: br-lan    inet6 fd01:9358:1333::1/60 scope global noprefixroute \       valid_lft forever preferred_lft forever
+6: br-lan    inet6 fe80::5054:ff:fe12:3458/64 scope link proto kernel_ll \       valid_lft forever preferred_lft forever
+root@cnc1338np12:~# free
+              total        used        free      shared  buff/cache   available
+Mem:        2033660       95208     1899056         284       39396     1886288
+Swap:       1268732           0     1268732
+root@cnc1338np12:~# apk list --installed 2>/dev/null | wc -l
+281
+root@cnc1338np12:~# ubus call system board 2>/dev/null
+{
+	"kernel": "6.12.94",
+	"hostname": "cnc1338np12",
+	"system": "Genuine Intel(R) 0000 @ 1.80GHz",
+	"model": "QEMU Standard PC (i440FX + PIIX, 1996)",
+	"board_name": "qemu-standard-pc-i440fx-piix-1996",
+	"rootfs_type": "ext4",
+	"release": {
+		"distribution": "OpenWrt",
+		"version": "25.12.5",
+		"firmware_url": "https://downloads.openwrt.org/",
+		"revision": "r33051-f5dae5ece4",
+		"target": "x86/64",
+		"description": "OpenWrt 25.12.5 r33051-f5dae5ece4",
+		"builddate": "1782737960"
+	}
+}
+root@cnc1338np12:~# ls /www/luci-static/ | head -n 12
+argon
+bootstrap
+bootstrap-dark
+bootstrap-light
+resources
+root@cnc1338np12:~# ls /www/luci-static/resources/ 2>/dev/null | head -n 8
+cbi
+cbi.js
+firewall.js
+form.js
+fs.js
+icons
+luci.js
+menu-argon.js
+root@cnc1338np12:~# wget -O- http://127.0.0.1/ 2>&1 | head -c 200; echo
+Downloading 'http://127.0.0.1/'
+Connecting to 127.0.0.1:80
+Writing to stdout
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+		<meta 
+root@cnc1338np12:~# wget -O- http://127.0.0.1/cgi-bin/luci/ 2>&1 | head -c 200; 
+echo
+Downloading 'http://127.0.0.1/cgi-bin/luci/'
+Connecting to 127.0.0.1:80
+HTTP error 403
+root@cnc1338np12:~# wget -O- http://127.0.0.1/luci-static/resources/luci.js 2>/d
+ev/null | wc -c
+29565
+root@cnc1338np12:~# logread 2>/dev/null | grep -iE 'cnc|firewall|uci-default' | 
+tail -n 15
+Sun Sep 27 23:15:33 2026 user.notice ucitrack: Setting up /etc/config/luci-splash reload dependency on /etc/config/firewall
+Sun Sep 27 23:15:33 2026 user.notice ucitrack: Setting up /etc/config/qos reload dependency on /etc/config/firewall
+Sun Sep 27 23:15:33 2026 user.notice ucitrack: Setting up /etc/config/miniupnpd reload dependency on /etc/config/firewall
+Sun Sep 27 23:15:33 2026 user.notice firewall: Reloading firewall due to ifup of lan (br-lan)
+root@cnc1338np12:~# logread 2>/dev/null | tail -n 15
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for onion
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for localhost
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for local
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for invalid
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for bind
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for lan
+Sun Sep 27 23:15:35 2026 daemon.warn dnsmasq[1]: no servers found in /tmp/resolv.conf.d/resolv.conf.auto, will retry
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /etc/hosts - 12 names
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /tmp/hosts/dhcp.cfg01411c - 0 names
+Sun Sep 27 23:15:35 2026 user.notice dnsmasq: found already running DHCP-server on interface 'br-lan' refusing to start, use 'option force 1' to override
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /etc/hosts - 12 names
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /tmp/hosts/dhcp.cfg01411c - 0 names
+Sun Sep 27 23:15:52 2026 daemon.warn odhcpd[2297]: No default route present, setting ra_lifetime to 0!
+Sun Sep 27 23:15:52 2026 daemon.warn odhcpd[2297]: rfc9096: br-lan: piofile updated
+Sun Sep 27 23:16:08 2026 daemon.warn odhcpd[2297]: No default route present, setting ra_lifetime to 0!
+root@cnc1338np12:~# echo @@E@@

@@ -1,0 +1,1126 @@
+error: can't find command `search'.
+
+error: can't find command `search'.
+
+GNU GRUB  version 2.12
+
++----------------------------------------------------------------------------+||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+
+      Press enter to boot the selected OS, `e' to edit the commands       
+
+      before booting or `c' for a command-line. ESC to return             
+
+      previous menu.                                                       *OpenWrt cnc1338np12                                                         OpenWrt cnc1338np12 (failsafe)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          GNU GRUB  version 2.12
+
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐││││││││││││││││││││││││││││││││││││││└────────────────────────────────────────────────────────────────────────────────────────────────┘     Use the ▲ and ▼ keys to select which entry is highlighted.                              
+
+      Press enter to boot the selected OS, `e' to edit the commands before booting or `c' for 
+
+      a command-line. ESC to return previous menu.                                            [05;:0H *OpenWrt cnc1338np12                                                                             OpenWrt cnc1338np12 (failsafe)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 [23;:0H    The highlighted entry will be executed automatically in 3s.                                        The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                                        The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                                        The highlighted entry will be executed automatically in 1s.                                                                                                                                                                                                                                                                                                                                                                                     [    0.000000] Linux version 6.12.94 (builder@buildhost) (x86_64-openwrt-linux-musl-gcc (OpenWrt GCC 14.3.0 r33051-f5dae5ece4) 14.3.0, GNU ld (GNU Binutils) 2.44) #0 SMP Mon Jun 29 12:59:20 2026
+[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz root=PARTUUID=682d2ae8-b788-90be-3018-d07af3e67802 rootwait console=tty1 console=ttyS0,115200n8 noinitrd
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff] usable
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000007fffff] usable
+[    0.000000] BIOS-e820: [mem 0x0000000000800000-0x0000000000807fff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x0000000000808000-0x000000000080afff] usable
+[    0.000000] BIOS-e820: [mem 0x000000000080b000-0x000000000080bfff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x000000000080c000-0x0000000000810fff] usable
+[    0.000000] BIOS-e820: [mem 0x0000000000811000-0x00000000008fffff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x0000000000900000-0x000000007ed3efff] usable
+[    0.000000] BIOS-e820: [mem 0x000000007ed3f000-0x000000007edfffff] reserved
+[    0.000000] BIOS-e820: [mem 0x000000007ee00000-0x000000007f8ecfff] usable
+[    0.000000] BIOS-e820: [mem 0x000000007f8ed000-0x000000007fb6cfff] reserved
+[    0.000000] BIOS-e820: [mem 0x000000007fb6d000-0x000000007fb7efff] ACPI data
+[    0.000000] BIOS-e820: [mem 0x000000007fb7f000-0x000000007fbfefff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x000000007fbff000-0x000000007feb1fff] usable
+[    0.000000] BIOS-e820: [mem 0x000000007feb2000-0x000000007feb5fff] reserved
+[    0.000000] BIOS-e820: [mem 0x000000007feb6000-0x000000007feb7fff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x000000007feb8000-0x000000007feebfff] usable
+[    0.000000] BIOS-e820: [mem 0x000000007feec000-0x000000007ff6ffff] reserved
+[    0.000000] BIOS-e820: [mem 0x000000007ff70000-0x000000007fffffff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x00000000feffc000-0x00000000feffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000ffc00000-0x00000000ffffffff] reserved
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] APIC: Static calls initialized
+[    0.000000] extended physical RAM map:
+[    0.000000] reserve setup_data: [mem 0x0000000000000000-0x000000000009ffff] usable
+[    0.000000] reserve setup_data: [mem 0x0000000000100000-0x00000000007fffff] usable
+[    0.000000] reserve setup_data: [mem 0x0000000000800000-0x0000000000807fff] ACPI NVS
+[    0.000000] reserve setup_data: [mem 0x0000000000808000-0x000000000080afff] usable
+[    0.000000] reserve setup_data: [mem 0x000000000080b000-0x000000000080bfff] ACPI NVS
+[    0.000000] reserve setup_data: [mem 0x000000000080c000-0x0000000000810fff] usable
+[    0.000000] reserve setup_data: [mem 0x0000000000811000-0x00000000008fffff] ACPI NVS
+[    0.000000] reserve setup_data: [mem 0x0000000000900000-0x000000007cf17017] usable
+[    0.000000] reserve setup_data: [mem 0x000000007cf17018-0x000000007cf3da57] usable
+[    0.000000] reserve setup_data: [mem 0x000000007cf3da58-0x000000007cf3e017] usable
+[    0.000000] reserve setup_data: [mem 0x000000007cf3e018-0x000000007cf64a57] usable
+[    0.000000] reserve setup_data: [mem 0x000000007cf64a58-0x000000007cf65017] usable
+[    0.000000] reserve setup_data: [mem 0x000000007cf65018-0x000000007cf8ba57] usable
+[    0.000000] reserve setup_data: [mem 0x000000007cf8ba58-0x000000007db46017] usable
+[    0.000000] reserve setup_data: [mem 0x000000007db46018-0x000000007db6ca57] usable
+[    0.000000] reserve setup_data: [mem 0x000000007db6ca58-0x000000007db6d017] usable
+[    0.000000] reserve setup_data: [mem 0x000000007db6d018-0x000000007db76a57] usable
+[    0.000000] reserve setup_data: [mem 0x000000007db76a58-0x000000007ed3efff] usable
+[    0.000000] reserve setup_data: [mem 0x000000007ed3f000-0x000000007edfffff] reserved
+[    0.000000] reserve setup_data: [mem 0x000000007ee00000-0x000000007f8ecfff] usable
+[    0.000000] reserve setup_data: [mem 0x000000007f8ed000-0x000000007fb6cfff] reserved
+[    0.000000] reserve setup_data: [mem 0x000000007fb6d000-0x000000007fb7efff] ACPI data
+[    0.000000] reserve setup_data: [mem 0x000000007fb7f000-0x000000007fbfefff] ACPI NVS
+[    0.000000] reserve setup_data: [mem 0x000000007fbff000-0x000000007feb1fff] usable
+[    0.000000] reserve setup_data: [mem 0x000000007feb2000-0x000000007feb5fff] reserved
+[    0.000000] reserve setup_data: [mem 0x000000007feb6000-0x000000007feb7fff] ACPI NVS
+[    0.000000] reserve setup_data: [mem 0x000000007feb8000-0x000000007feebfff] usable
+[    0.000000] reserve setup_data: [mem 0x000000007feec000-0x000000007ff6ffff] reserved
+[    0.000000] reserve setup_data: [mem 0x000000007ff70000-0x000000007fffffff] ACPI NVS
+[    0.000000] reserve setup_data: [mem 0x00000000feffc000-0x00000000feffffff] reserved
+[    0.000000] reserve setup_data: [mem 0x00000000ffc00000-0x00000000ffffffff] reserved
+[    0.000000] efi: EFI v2.7 by Debian distribution of EDK II
+[    0.000000] efi: SMBIOS=0x7f988000 ACPI=0x7fb7e000 ACPI 2.0=0x7fb7e014 MEMATTR=0x7dcf5018 RNG=0x7fb74018 
+[    0.000000] random: crng init done
+[    0.000000] efi: Remove mem127: MMIO range=[0xffc00000-0xffffffff] (4MB) from e820 map
+[    0.000000] SMBIOS 2.8 present.
+[    0.000000] DMI: QEMU Standard PC (i440FX + PIIX, 1996), BIOS 2025.02-8+deb13u1 11/08/2025
+[    0.000000] DMI: Memory slots populated: 1/1
+[    0.000000] Hypervisor detected: KVM
+[    0.000000] last_pfn = 0x7feec max_arch_pfn = 0x400000000
+[    0.000000] kvm-clock: Using msrs 4b564d01 and 4b564d00
+[    0.000000] kvm-clock: using sched offset of 5705841564 cycles
+[    0.000001] clocksource: kvm-clock: mask: 0xffffffffffffffff max_cycles: 0x1cd42e4dffb, max_idle_ns: 881590591483 ns
+[    0.000004] tsc: Detected 1800.000 MHz processor
+[    0.000539] last_pfn = 0x7feec max_arch_pfn = 0x400000000
+[    0.000754] MTRR map: 4 entries (2 fixed + 2 variable; max 18), built from 8 variable MTRRs
+[    0.000763] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+[    0.007692] Using GB pages for direct mapping
+[    0.008383] Secure boot disabled
+[    0.008385] ACPI: Early table checksum verification disabled
+[    0.008386] ACPI: RSDP 0x000000007FB7E014 000024 (v02 BOCHS )
+[    0.008389] ACPI: XSDT 0x000000007FB7D0E8 00004C (v01 BOCHS  BXPC     00000001      01000013)
+[    0.008392] ACPI: FACP 0x000000007FB79000 000074 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.008395] ACPI: DSDT 0x000000007FB7A000 002214 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.008397] ACPI: FACS 0x000000007FBDD000 000040
+[    0.008398] ACPI: APIC 0x000000007FB78000 000080 (v03 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.008400] ACPI: HPET 0x000000007FB77000 000038 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.008401] ACPI: WAET 0x000000007FB76000 000028 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.008402] ACPI: BGRT 0x000000007FB75000 000038 (v01 INTEL  EDK2     00000002      01000013)
+[    0.008404] ACPI: Reserving FACP table memory at [mem 0x7fb79000-0x7fb79073]
+[    0.008404] ACPI: Reserving DSDT table memory at [mem 0x7fb7a000-0x7fb7c213]
+[    0.008405] ACPI: Reserving FACS table memory at [mem 0x7fbdd000-0x7fbdd03f]
+[    0.008405] ACPI: Reserving APIC table memory at [mem 0x7fb78000-0x7fb7807f]
+[    0.008406] ACPI: Reserving HPET table memory at [mem 0x7fb77000-0x7fb77037]
+[    0.008406] ACPI: Reserving WAET table memory at [mem 0x7fb76000-0x7fb76027]
+[    0.008406] ACPI: Reserving BGRT table memory at [mem 0x7fb75000-0x7fb75037]
+[    0.008468] Zone ranges:
+[    0.008469]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.008470]   DMA32    [mem 0x0000000001000000-0x000000007feebfff]
+[    0.008471]   Normal   empty
+[    0.008471] Movable zone start for each node
+[    0.008472] Early memory node ranges
+[    0.008472]   node   0: [mem 0x0000000000001000-0x000000000009ffff]
+[    0.008473]   node   0: [mem 0x0000000000100000-0x00000000007fffff]
+[    0.008473]   node   0: [mem 0x0000000000808000-0x000000000080afff]
+[    0.008473]   node   0: [mem 0x000000000080c000-0x0000000000810fff]
+[    0.008474]   node   0: [mem 0x0000000000900000-0x000000007ed3efff]
+[    0.008474]   node   0: [mem 0x000000007ee00000-0x000000007f8ecfff]
+[    0.008474]   node   0: [mem 0x000000007fbff000-0x000000007feb1fff]
+[    0.008475]   node   0: [mem 0x000000007feb8000-0x000000007feebfff]
+[    0.008475] Initmem setup node 0 [mem 0x0000000000001000-0x000000007feebfff]
+[    0.008478] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.008488] On node 0, zone DMA: 96 pages in unavailable ranges
+[    0.008488] On node 0, zone DMA: 8 pages in unavailable ranges
+[    0.008489] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.008498] On node 0, zone DMA: 239 pages in unavailable ranges
+[    0.012529] On node 0, zone DMA32: 193 pages in unavailable ranges
+[    0.012541] On node 0, zone DMA32: 786 pages in unavailable ranges
+[    0.012542] On node 0, zone DMA32: 6 pages in unavailable ranges
+[    0.012544] On node 0, zone DMA32: 276 pages in unavailable ranges
+[    0.014465] ACPI: PM-Timer IO Port: 0xb008
+[    0.014495] ACPI: LAPIC_NMI (acpi_id[0xff] dfl dfl lint[0x1])
+[    0.014597] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+[    0.014599] ACPI: INT_SRC_OVR (bus 0 bus_irq 0 global_irq 2 dfl dfl)
+[    0.014600] ACPI: INT_SRC_OVR (bus 0 bus_irq 5 global_irq 5 high level)
+[    0.014600] ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+[    0.014601] ACPI: INT_SRC_OVR (bus 0 bus_irq 10 global_irq 10 high level)
+[    0.014602] ACPI: INT_SRC_OVR (bus 0 bus_irq 11 global_irq 11 high level)
+[    0.014604] ACPI: Using ACPI (MADT) for SMP configuration information
+[    0.014605] ACPI: HPET id: 0x8086a201 base: 0xfed00000
+[    0.014608] TSC deadline timer available
+[    0.014611] CPU topo: Max. logical packages:   1
+[    0.014612] CPU topo: Max. logical dies:       1
+[    0.014612] CPU topo: Max. dies per package:   1
+[    0.014614] CPU topo: Max. threads per core:   1
+[    0.014615] CPU topo: Num. cores per package:     2
+[    0.014615] CPU topo: Num. threads per package:   2
+[    0.014615] CPU topo: Allowing 2 present CPUs plus 0 hotplug CPUs
+[    0.014647] kvm-guest: APIC: eoi() replaced with 0xffffffff8105e5b0()
+[    0.014677] kvm-guest: KVM setup pv remote TLB flush
+[    0.014699] kvm-guest: setup PV sched yield
+[    0.014709] [mem 0x80000000-0xfeffbfff] available for PCI devices
+[    0.014710] Booting paravirtualized kernel on KVM
+[    0.014711] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+[    0.014715] setup_percpu: NR_CPUS:512 nr_cpumask_bits:2 nr_cpu_ids:2 nr_node_ids:1
+[    0.014881] percpu: Embedded 48 pages/cpu s158680 r8192 d29736 u1048576
+[    0.014970] kvm-guest: PV spinlocks enabled
+[    0.014972] PV qspinlock hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.014973] Kernel command line: BOOT_IMAGE=/boot/vmlinuz root=PARTUUID=682d2ae8-b788-90be-3018-d07af3e67802 rootwait console=tty1 console=ttyS0,115200n8 noinitrd
+[    0.015131] Dentry cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.015194] Inode-cache hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+[    0.015283] Built 1 zonelists, mobility grouping on.  Total pages: 522682
+[    0.015285] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.017390] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+[    0.017590] rcu: Hierarchical RCU implementation.
+[    0.017591] rcu: 	RCU restricting CPUs from NR_CPUS=512 to nr_cpu_ids=2.
+[    0.017592] 	Tracing variant of Tasks RCU enabled.
+[    0.017593] rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+[    0.017594] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+[    0.017597] RCU Tasks Trace: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+[    0.017598] NR_IRQS: 33024, nr_irqs: 440, preallocated irqs: 16
+[    0.017837] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.017888] Console: colour dummy device 80x25
+[    0.017890] printk: legacy console [tty1] enabled
+[    0.018108] printk: legacy console [ttyS0] enabled
+[    0.395284] ACPI: Core revision 20240827
+[    0.397023] clocksource: hpet: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604467 ns
+[    0.400528] APIC: Switch to symmetric I/O mode setup
+[    0.403175] x2apic enabled
+[    0.405204] APIC: Switched APIC routing to: physical x2apic
+[    0.407171] kvm-guest: APIC: send_IPI_mask() replaced with 0xffffffff8105ec40()
+[    0.409738] kvm-guest: APIC: send_IPI_mask_allbutself() replaced with 0xffffffff8105eba0()
+[    0.412696] kvm-guest: setup PV IPIs
+[    0.417772] ..TIMER: vector=0x30 apic1=0 pin1=2 apic2=-1 pin2=-1
+[    0.419995] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x19f2297dd97, max_idle_ns: 440795236593 ns
+[    0.424435] Calibrating delay loop (skipped) preset value.. 3600.00 BogoMIPS (lpj=18000000)
+[    0.428278] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.434844] Last level iTLB entries: 4KB 0, 2MB 0, 4MB 0
+[    0.436773] Last level dTLB entries: 4KB 0, 2MB 0, 4MB 0, 1GB 0
+[    0.438916] Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+[    0.441912] Spectre V2 : Spectre BHI mitigation: SW BHB clearing on syscall and VM exit
+[    0.444438] Spectre V2 : Mitigation: Enhanced / Automatic IBRS
+[    0.446369] Spectre V2 : Spectre v2 / PBRSB-eIBRS: Retire a single CALL on VMEXIT
+[    0.448867] RETBleed: Mitigation: Enhanced IBRS
+[    0.450370] Spectre V2 : mitigation: Enabling conditional Indirect Branch Prediction Barrier
+[    0.453099] Speculative Store Bypass: Mitigation: Speculative Store Bypass disabled via prctl
+[    0.454438] MMIO Stale Data: Vulnerable: Clear CPU buffers attempted, no microcode
+[    0.456942] GDS: Unknown: Dependent on hypervisor status
+[    0.458693] ITS: Vulnerable
+[    0.459796] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.462594] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.464437] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.466796] x86/fpu: Supporting XSAVE feature 0x008: 'MPX bounds registers'
+[    0.469315] x86/fpu: Supporting XSAVE feature 0x010: 'MPX CSR'
+[    0.471399] x86/fpu: Supporting XSAVE feature 0x020: 'AVX-512 opmask'
+[    0.474437] x86/fpu: Supporting XSAVE feature 0x040: 'AVX-512 Hi256'
+[    0.476749] x86/fpu: Supporting XSAVE feature 0x080: 'AVX-512 ZMM_Hi256'
+[    0.479147] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.481366] x86/fpu: xstate_offset[3]:  832, xstate_sizes[3]:   64
+[    0.484437] x86/fpu: xstate_offset[4]:  896, xstate_sizes[4]:   64
+[    0.486677] x86/fpu: xstate_offset[5]:  960, xstate_sizes[5]:   64
+[    0.488899] x86/fpu: xstate_offset[6]: 1024, xstate_sizes[6]:  512
+[    0.491101] x86/fpu: xstate_offset[7]: 1536, xstate_sizes[7]: 1024
+[    0.493325] x86/fpu: Enabled xstate features 0xff, context size is 2560 bytes, using 'compacted' format.
+[    0.499736] Freeing SMP alternatives memory: 40K
+[    0.504439] pid_max: default: 32768 minimum: 301
+[    0.506489] Mount-cache hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.509192] Mountpoint-cache hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.512280] smpboot: CPU0: Genuine Intel(R) 0000 @ 1.80GHz (family: 0x6, model: 0xa7, stepping: 0x0)
+[    0.514435] Performance Events: Icelake events, full-width counters, Intel PMU driver.
+[    0.514435] ... version:                2
+[    0.514435] ... bit width:              48
+[    0.514435] ... generic registers:      8
+[    0.514445] ... value mask:             0000ffffffffffff
+[    0.516420] ... max period:             00007fffffffffff
+[    0.518347] ... fixed-purpose events:   3
+[    0.519801] ... event mask:             00000007000000ff
+[    0.521968] signal: max sigframe size: 3216
+[    0.523539] rcu: Hierarchical SRCU implementation.
+[    0.524445] rcu: 	Max phase no-delay instances is 1000.
+[    0.526378] smp: Bringing up secondary CPUs ...
+[    0.528153] smpboot: x86: Booting SMP configuration:
+[    0.529958] .... node  #0, CPUs:      #1
+[    0.532139] smp: Brought up 1 node, 2 CPUs
+[    0.534448] smpboot: Total of 2 processors activated (7200.00 BogoMIPS)
+[    0.537392] Memory: 1992464K/2090728K available (14336K kernel code, 1177K rwdata, 2556K rodata, 1496K init, 1300K bss, 95272K reserved, 0K cma-reserved)
+[    0.542584] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+[    0.544448] futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+[    0.546902] pinctrl core: initialized pinctrl subsystem
+[    0.549189] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.551450] thermal_sys: Registered thermal governor 'step_wise'
+[    0.551451] thermal_sys: Registered thermal governor 'user_space'
+[    0.553679] cpuidle: using governor ladder
+[    0.556528] efi: Freeing EFI boot services memory: 35168K
+[    0.558528] acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+[    0.561072] PCI: Using configuration type 1 for base access
+[    0.563606] cryptd: max_cpu_qlen set to 1000
+[    0.564623] ACPI: Added _OSI(Module Device)
+[    0.566171] ACPI: Added _OSI(Processor Device)
+[    0.567788] ACPI: Added _OSI(Processor Aggregator Device)
+[    0.570133] ACPI: 1 ACPI AML tables successfully acquired and loaded
+[    0.573144] ACPI: Interpreter enabled
+[    0.574448] ACPI: PM: (supports S0 S5)
+[    0.575804] ACPI: Using IOAPIC for interrupt routing
+[    0.577643] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.580948] PCI: Ignoring E820 reservations for host bridge windows
+[    0.583338] ACPI: Enabled 2 GPEs in block 00 to 0F
+[    0.586006] ACPI: PCI Root Bridge [PCI0] (domain 0000 [bus 00-ff])
+[    0.588279] acpi PNP0A03:00: _OSC: OS supports [ASPM ClockPM Segments MSI HPX-Type3]
+[    0.591094] acpi PNP0A03:00: _OSC: not requesting OS control; OS requires [ExtendedConfig ASPM ClockPM MSI]
+[    0.594449] acpi PNP0A03:00: fail to add MMCONFIG information, can't access extended configuration space under this bridge
+[    0.598627] acpiphp: Slot [3] registered
+[    0.600107] acpiphp: Slot [4] registered
+[    0.601581] acpiphp: Slot [5] registered
+[    0.603036] acpiphp: Slot [6] registered
+[    0.604479] acpiphp: Slot [7] registered
+[    0.605950] acpiphp: Slot [8] registered
+[    0.607432] acpiphp: Slot [9] registered
+[    0.608960] acpiphp: Slot [10] registered
+[    0.610514] acpiphp: Slot [11] registered
+[    0.612297] acpiphp: Slot [12] registered
+[    0.613872] acpiphp: Slot [13] registered
+[    0.614481] acpiphp: Slot [14] registered
+[    0.616034] acpiphp: Slot [15] registered
+[    0.617548] acpiphp: Slot [16] registered
+[    0.619125] acpiphp: Slot [17] registered
+[    0.621160] acpiphp: Slot [18] registered
+[    0.623426] acpiphp: Slot [19] registered
+[    0.624508] acpiphp: Slot [20] registered
+[    0.626533] acpiphp: Slot [21] registered
+[    0.628049] acpiphp: Slot [22] registered
+[    0.629576] acpiphp: Slot [23] registered
+[    0.631078] acpiphp: Slot [24] registered
+[    0.632552] acpiphp: Slot [25] registered
+[    0.634072] acpiphp: Slot [26] registered
+[    0.634479] acpiphp: Slot [27] registered
+[    0.635996] acpiphp: Slot [28] registered
+[    0.637476] acpiphp: Slot [29] registered
+[    0.638945] acpiphp: Slot [30] registered
+[    0.640475] acpiphp: Slot [31] registered
+[    0.642025] PCI host bridge to bus 0000:00
+[    0.643544] pci_bus 0000:00: root bus resource [io  0x0000-0x0cf7 window]
+[    0.644445] pci_bus 0000:00: root bus resource [io  0x0d00-0xffff window]
+[    0.646899] pci_bus 0000:00: root bus resource [mem 0x000a0000-0x000bffff window]
+[    0.649551] pci_bus 0000:00: root bus resource [mem 0x80000000-0xfebfffff window]
+[    0.652250] pci_bus 0000:00: root bus resource [mem 0x7000000000-0x707fffffff window]
+[    0.654445] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.656531] pci 0000:00:00.0: [8086:1237] type 00 class 0x060000 conventional PCI endpoint
+[    0.660943] pci 0000:00:01.0: [8086:7000] type 00 class 0x060100 conventional PCI endpoint
+[    0.666406] pci 0000:00:01.1: [8086:7010] type 00 class 0x010180 conventional PCI endpoint
+[    0.672619] pci 0000:00:01.1: BAR 4 [io  0xc100-0xc10f]
+[    0.675625] pci 0000:00:01.1: BAR 0 [io  0x01f0-0x01f7]: legacy IDE quirk
+[    0.678141] pci 0000:00:01.1: BAR 1 [io  0x03f6]: legacy IDE quirk
+[    0.680849] pci 0000:00:01.1: BAR 2 [io  0x0170-0x0177]: legacy IDE quirk
+[    0.683380] pci 0000:00:01.1: BAR 3 [io  0x0376]: legacy IDE quirk
+[    0.684863] pci 0000:00:01.3: [8086:7113] type 00 class 0x068000 conventional PCI endpoint
+[    0.690121] pci 0000:00:01.3: quirk: [io  0xb000-0xb03f] claimed by PIIX4 ACPI
+[    0.692784] pci 0000:00:01.3: quirk: [io  0xb100-0xb10f] claimed by PIIX4 SMB
+[    0.695070] pci 0000:00:02.0: [1234:1111] type 00 class 0x030000 conventional PCI endpoint
+[    0.699461] pci 0000:00:02.0: BAR 0 [mem 0x80000000-0x80ffffff pref]
+[    0.704199] pci 0000:00:02.0: BAR 2 [mem 0x81151000-0x81151fff]
+[    0.709018] pci 0000:00:02.0: ROM [mem 0xffff0000-0xffffffff pref]
+[    0.711492] pci 0000:00:02.0: Video device with shadowed ROM at [mem 0x000c0000-0x000dffff]
+[    0.715062] pci 0000:00:03.0: [8086:10d3] type 00 class 0x020000 PCIe Endpoint
+[    0.718917] pci 0000:00:03.0: BAR 0 [mem 0x81120000-0x8113ffff]
+[    0.722063] pci 0000:00:03.0: BAR 1 [mem 0x81100000-0x8111ffff]
+[    0.725200] pci 0000:00:03.0: BAR 2 [io  0xc0e0-0xc0ff]
+[    0.728410] pci 0000:00:03.0: BAR 3 [mem 0x8114c000-0x8114ffff]
+[    0.733839] pci 0000:00:03.0: ROM [mem 0xfffc0000-0xffffffff pref]
+[    0.734551] pci 0000:00:03.0: enabling Extended Tags
+[    0.739139] pci 0000:00:04.0: [8086:10d3] type 00 class 0x020000 PCIe Endpoint
+[    0.742816] pci 0000:00:04.0: BAR 0 [mem 0x810e0000-0x810fffff]
+[    0.745316] pci 0000:00:04.0: BAR 1 [mem 0x810c0000-0x810dffff]
+[    0.748675] pci 0000:00:04.0: BAR 2 [io  0xc0c0-0xc0df]
+[    0.751415] pci 0000:00:04.0: BAR 3 [mem 0x81148000-0x8114bfff]
+[    0.756809] pci 0000:00:04.0: ROM [mem 0xfffc0000-0xffffffff pref]
+[    0.760008] pci 0000:00:04.0: enabling Extended Tags
+[    0.763842] pci 0000:00:05.0: [8086:10d3] type 00 class 0x020000 PCIe Endpoint
+[    0.765525] pci 0000:00:05.0: BAR 0 [mem 0x810a0000-0x810bffff]
+[    0.768710] pci 0000:00:05.0: BAR 1 [mem 0x81080000-0x8109ffff]
+[    0.771715] pci 0000:00:05.0: BAR 2 [io  0xc0a0-0xc0bf]
+[    0.774444] pci 0000:00:05.0: BAR 3 [mem 0x81144000-0x81147fff]
+[    0.779622] pci 0000:00:05.0: ROM [mem 0xfffc0000-0xffffffff pref]
+[    0.782014] pci 0000:00:05.0: enabling Extended Tags
+[    0.785897] pci 0000:00:06.0: [8086:10d3] type 00 class 0x020000 PCIe Endpoint
+[    0.790038] pci 0000:00:06.0: BAR 0 [mem 0x81060000-0x8107ffff]
+[    0.793020] pci 0000:00:06.0: BAR 1 [mem 0x81040000-0x8105ffff]
+[    0.795266] pci 0000:00:06.0: BAR 2 [io  0xc080-0xc09f]
+[    0.798521] pci 0000:00:06.0: BAR 3 [mem 0x81140000-0x81143fff]
+[    0.803199] pci 0000:00:06.0: ROM [mem 0xfffc0000-0xffffffff pref]
+[    0.804555] pci 0000:00:06.0: enabling Extended Tags
+[    0.809212] pci 0000:00:07.0: [1af4:1001] type 00 class 0x010000 conventional PCI endpoint
+[    0.813032] pci 0000:00:07.0: BAR 0 [io  0xc000-0xc07f]
+[    0.815121] pci 0000:00:07.0: BAR 1 [mem 0x81150000-0x81150fff]
+[    0.819667] pci 0000:00:07.0: BAR 4 [mem 0x7000000000-0x7000003fff 64bit pref]
+[    0.831660] ACPI: PCI: Interrupt link LNKA configured for IRQ 10
+[    0.833953] ACPI: PCI: Interrupt link LNKB configured for IRQ 10
+[    0.834589] ACPI: PCI: Interrupt link LNKC configured for IRQ 11
+[    0.837694] ACPI: PCI: Interrupt link LNKD configured for IRQ 11
+[    0.839926] ACPI: PCI: Interrupt link LNKS configured for IRQ 9
+[    0.842318] iommu: Default domain type: Translated
+[    0.844055] iommu: DMA domain TLB invalidation policy: lazy mode
+[    0.844481] SCSI subsystem initialized
+[    0.846308] ACPI: bus type USB registered
+[    0.847812] usbcore: registered new interface driver usbfs
+[    0.849805] usbcore: registered new interface driver hub
+[    0.851720] usbcore: registered new device driver usb
+[    0.853587] pps_core: LinuxPPS API ver. 1 registered
+[    0.854456] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.857754] PTP clock support registered
+[    0.859365] efivars: Registered efivars operations
+[    0.859691] PCI: Using ACPI for IRQ routing
+[    0.863511] hpet0: at MMIO 0xfed00000, IRQs 2, 8, 0
+[    0.864446] hpet0: 3 comparators, 64-bit 100.000000 MHz counter
+[    0.873083] clocksource: Switched to clocksource kvm-clock
+[    0.873083] pnp: PnP ACPI init
+[    0.873083] pnp: PnP ACPI: found 6 devices
+[    0.874511] clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+[    0.877797] NET: Registered PF_INET protocol family
+[    0.879657] IP idents hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.882566] tcp_listen_portaddr_hash hash table entries: 1024 (order: 2, 16384 bytes, linear)
+[    0.885652] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.888476] TCP established hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.891300] TCP bind hash table entries: 16384 (order: 7, 524288 bytes, linear)
+[    0.893947] TCP: Hash tables configured (established 16384 bind 16384)
+[    0.896320] MPTCP token hash table entries: 2048 (order: 4, 49152 bytes, linear)
+[    0.899022] UDP hash table entries: 1024 (order: 3, 32768 bytes, linear)
+[    0.901424] UDP-Lite hash table entries: 1024 (order: 3, 32768 bytes, linear)
+[    0.903983] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.906070] pci 0000:00:03.0: ROM [mem 0xfffc0000-0xffffffff pref]: can't claim; no compatible bridge window
+[    0.909633] pci 0000:00:04.0: ROM [mem 0xfffc0000-0xffffffff pref]: can't claim; no compatible bridge window
+[    0.913124] pci 0000:00:05.0: ROM [mem 0xfffc0000-0xffffffff pref]: can't claim; no compatible bridge window
+[    0.916647] pci 0000:00:06.0: ROM [mem 0xfffc0000-0xffffffff pref]: can't claim; no compatible bridge window
+[    0.920170] pci 0000:00:03.0: ROM [mem 0x81000000-0x8103ffff pref]: assigned
+[    0.922673] pci 0000:00:04.0: ROM [mem 0x81180000-0x811bffff pref]: assigned
+[    0.925214] pci 0000:00:05.0: ROM [mem 0x811c0000-0x811fffff pref]: assigned
+[    0.927816] pci 0000:00:06.0: ROM [mem 0x81200000-0x8123ffff pref]: assigned
+[    0.930340] pci_bus 0000:00: resource 4 [io  0x0000-0x0cf7 window]
+[    0.932572] pci_bus 0000:00: resource 5 [io  0x0d00-0xffff window]
+[    0.934779] pci_bus 0000:00: resource 6 [mem 0x000a0000-0x000bffff window]
+[    0.937278] pci_bus 0000:00: resource 7 [mem 0x80000000-0xfebfffff window]
+[    0.939746] pci_bus 0000:00: resource 8 [mem 0x7000000000-0x707fffffff window]
+[    0.942386] pci 0000:00:01.0: PIIX3: Enabling Passive Release
+[    0.944492] pci 0000:00:00.0: Limiting direct PCI/PCI transfers
+[    0.946950] PCI: CLS 0 bytes, default 64
+[    0.948594] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x19f2297dd97, max_idle_ns: 440795236593 ns
+[    0.952637] workingset: timestamp_bits=46 max_order=19 bucket_order=0
+[    0.955079] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.957326] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 247)
+[    0.960302] hv_vmbus: registering driver hyperv_fb
+[    0.962119] input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input0
+[    0.964903] ACPI: button: Power Button [PWRF]
+[    0.967208] ACPI: \_SB_.LNKC: Enabled at IRQ 11
+[    0.971432] Serial: 8250/16550 driver, 16 ports, IRQ sharing enabled
+[    0.999859] 00:04: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[    1.003312] Non-volatile memory driver v1.3
+[    1.004951] Linux agpgart interface v0.103
+[    1.006615] ACPI: bus type drm_connector registered
+[    1.008607] [drm] Found bochs VGA, ID 0xb0c5.
+[    1.010193] [drm] Framebuffer size 16384 kB @ 0x80000000, mmio @ 0x81151000.
+[    1.016710] [drm] Found EDID data blob.
+[    1.018186] [drm] Initialized bochs-drm 1.0.0 for 0000:00:02.0 on minor 0
+[    1.033299] Console: switching to colour frame buffer device 160x50
+[    1.036686] bochs-drm 0000:00:02.0: [drm] fb0: bochs-drmdrmfb frame buffer device
+[    1.048061] loop: module loaded
+[    1.049699] virtio_blk virtio0: 2/0/0 default/read/poll queues
+[    1.053743] virtio_blk virtio0: [vda] 8520255 512-byte logical blocks (4.36 GB/4.06 GiB)
+[    1.058318] GPT:Primary header thinks Alt. header is not at the end of the disk.
+[    1.060958] GPT:8520224 != 8520254
+[    1.062224] GPT:Alternate GPT header not at the end of the disk.
+[    1.064397] GPT:8520224 != 8520254
+[    1.065673] GPT: Use GNU Parted to correct GPT errors.
+[    1.067586]  vda: vda1 vda2 vda128
+[    1.068968] Guest personality initialized and is inactive
+[    1.070961] VMCI host device registered (name=vmci, major=10, minor=256)
+[    1.073406] Initialized host personality
+[    1.074854] usbcore: registered new interface driver rtsx_usb
+[    1.077027] VMware PVSCSI driver - version 1.0.7.0-k
+[    1.078881] hv_vmbus: registering driver hv_storvsc
+[    1.081698] scsi host0: ata_piix
+[    1.083172] scsi host1: ata_piix
+[    1.084439] ata1: PATA max MWDMA2 cmd 0x1f0 ctl 0x3f6 bmdma 0xc100 irq 14 lpm-pol 0
+[    1.087299] ata2: PATA max MWDMA2 cmd 0x170 ctl 0x376 bmdma 0xc108 irq 15 lpm-pol 0
+[    1.090226] VMware vmxnet3 virtual NIC driver - version 1.9.0.0-k-NAPI
+[    1.092883] hv_vmbus: registering driver hv_netvsc
+[    1.094696] Fusion MPT base driver 3.04.20
+[    1.096213] Copyright (c) 1999-2008 LSI Corporation
+[    1.098053] Fusion MPT SPI Host driver 3.04.20
+[    1.099857] Fusion MPT SAS Host driver 3.04.20
+[    1.102287] usbcore: registered new interface driver usb-storage
+[    1.105306] i8042: PNP: PS/2 Controller [PNP0303:KBD,PNP0f13:MOU] at 0x60,0x64 irq 1,12
+[    1.110826] serio: i8042 KBD port at 0x60,0x64 irq 1
+[    1.112924] serio: i8042 AUX port at 0x60,0x64 irq 12
+[    1.114960] hv_vmbus: registering driver hyperv_keyboard
+[    1.117131] rtc_cmos 00:05: RTC can wake from S4
+[    1.120335] rtc_cmos 00:05: registered as rtc0
+[    1.122336] rtc_cmos 00:05: setting system clock to 2026-09-27T15:15:27 UTC (1790522127)
+[    1.125522] rtc_cmos 00:05: alarms up to one day, y3k, 242 bytes nvram
+[    1.128130] intel_powerclamp: CPU does not support MWAIT
+[    1.130240] intel_pstate: CPU model not supported
+[    1.132121] sdhci: Secure Digital Host Controller Interface driver
+[    1.134524] sdhci: Copyright(c) Pierre Ossman
+[    1.136300] VUB300 Driver rom wait states = 1C irqpoll timeout = 0400
+[    1.136890] usbcore: registered new interface driver vub300
+[    1.141887] usbcore: registered new interface driver ushc
+[    1.141945] input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input1
+[    1.144129] hid: raw HID events driver (C) Jiri Kosina
+[    1.149441] hv_vmbus: registering driver hid_hyperv
+[    1.151357] usbcore: registered new interface driver usbhid
+[    1.153539] usbhid: USB HID core driver
+[    1.155087] hv_utils: Registering HyperV Utility Driver
+[    1.157177] hv_vmbus: registering driver hv_utils
+[    1.159027] hv_vmbus: registering driver hv_balloon
+[    1.161262] NET: Registered PF_INET6 protocol family
+[    1.163796] Segment Routing with IPv6
+[    1.165321] In-situ OAM (IOAM) with IPv6
+[    1.167004] NET: Registered PF_PACKET protocol family
+[    1.169010] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[    1.173849] 8021q: 802.1Q VLAN Support v1.8
+[    1.175590] NET: Registered PF_VSOCK protocol family
+[    1.178141] IPI shorthand broadcast: enabled
+[    1.180173] AES CTR mode by8 optimization enabled
+[    1.185208] clk: Disabling unused clocks
+[    1.248604] ata2: found unknown device (class 0)
+[    1.259493] ata2.00: ATAPI: QEMU DVD-ROM, 2.5+, max UDMA/100
+[    1.273868] scsi 1:0:0:0: CD-ROM            QEMU     QEMU DVD-ROM     2.5+ PQ: 0 ANSI: 5
+[    1.382534] sr 1:0:0:0: [sr0] scsi3-mmc drive: 4x/4x cd/rw xa/form2 tray
+[    1.469574] cdrom: Uniform CD-ROM driver Revision: 3.20
+[    1.526489] EXT4-fs (vda2): mounted filesystem ff313567-e9f1-5a5d-9895-3ba130b4a864 ro with ordered data mode. Quota mode: disabled.
+[    1.537050] VFS: Mounted root (ext4 filesystem) readonly on device 254:2.
+[    1.540937] Freeing unused kernel image (initmem) memory: 1496K
+[    1.543139] Write protecting the kernel read-only data: 18432k
+[    1.545192] Freeing unused kernel image (rodata/data gap) memory: 1540K
+[    1.546934] Run /sbin/init as init process
+[    1.563293] init: Console is alive
+[    1.565375] kmodloader: loading kernel modules from /etc/modules-boot.d/*
+[    1.569352] button_hotplug: loading out-of-tree module taints kernel.
+[    1.571221] Button Hotplug driver version 0.4.1
+[    1.573455] Intel(R) 2.5G Ethernet Linux Driver
+[    1.574660] Copyright(c) 2018 Intel Corporation.
+[    1.576558] igb: Intel(R) Gigabit Ethernet Network Driver
+[    1.578034] igb: Copyright (c) 2007-2014 Intel Corporation.
+[    1.581066] e1000e: Intel(R) PRO/1000 Network Driver
+[    1.582458] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
+[    1.585091] e1000e 0000:00:03.0: Interrupt Throttling Rate (ints/sec) set to simplified (2000-8000 ints) mode
+[    1.587521] e1000e 0000:00:03.0: Interrupt Mode set to 1
+[    1.646136] e1000e 0000:00:03.0 0000:00:03.0 (uninitialized): registered PHC clock
+[    1.722269] e1000e 0000:00:03.0 eth0: (PCI Express:2.5GT/s:Width x1) 52:54:00:12:34:56
+[    1.724242] e1000e 0000:00:03.0 eth0: Intel(R) PRO/1000 Network Connection
+[    1.726062] e1000e 0000:00:03.0 eth0: MAC: 3, PHY: 8, PBA No: 000000-000
+[    1.728227] ACPI: \_SB_.LNKD: Enabled at IRQ 10
+[    1.730204] e1000e 0000:00:04.0: Interrupt Throttling Rate (ints/sec) set to simplified (2000-8000 ints) mode
+[    1.781890] e1000e 0000:00:04.0 0000:00:04.0 (uninitialized): registered PHC clock
+[    1.880600] e1000e 0000:00:04.0 eth1: (PCI Express:2.5GT/s:Width x1) 52:54:00:12:34:57
+[    1.882553] e1000e 0000:00:04.0 eth1: Intel(R) PRO/1000 Network Connection
+[    1.884356] e1000e 0000:00:04.0 eth1: MAC: 3, PHY: 8, PBA No: 000000-000
+[    1.886478] ACPI: \_SB_.LNKA: Enabled at IRQ 10
+[    1.888437] e1000e 0000:00:05.0: Interrupt Throttling Rate (ints/sec) set to simplified (2000-8000 ints) mode
+[    1.941721] e1000e 0000:00:05.0 0000:00:05.0 (uninitialized): registered PHC clock
+[    2.018696] e1000e 0000:00:05.0 eth2: (PCI Express:2.5GT/s:Width x1) 52:54:00:12:34:58
+[    2.020634] e1000e 0000:00:05.0 eth2: Intel(R) PRO/1000 Network Connection
+[    2.022438] e1000e 0000:00:05.0 eth2: MAC: 3, PHY: 8, PBA No: 000000-000
+[    2.024568] ACPI: \_SB_.LNKB: Enabled at IRQ 11
+[    2.026540] e1000e 0000:00:06.0: Interrupt Throttling Rate (ints/sec) set to simplified (2000-8000 ints) mode
+[    2.085772] e1000e 0000:00:06.0 0000:00:06.0 (uninitialized): registered PHC clock
+[    2.167525] e1000e 0000:00:06.0 eth3: (PCI Express:2.5GT/s:Width x1) 52:54:00:12:34:59
+[    2.169535] e1000e 0000:00:06.0 eth3: Intel(R) PRO/1000 Network Connection
+[    2.171300] e1000e 0000:00:06.0 eth3: MAC: 3, PHY: 8, PBA No: 000000-000
+[    2.173573] kmodloader: done loading kernel modules from /etc/modules-boot.d/*
+[    2.184613] init: - preinit -
+
+[    2.417019] e1000e 0000:00:03.0 eth0: MSI interrupt test failed, using legacy interrupt.
+[    2.429467] 8021q: adding VLAN 0 to HW filter on device eth0
+Press the [f] key and hit [enter] to enter failsafe mode
+Press the [1], [2], [3] or [4] key and hit [enter] to select the debug level
+[    2.812868] e1000e 0000:00:03.0 eth0: NIC Link is Up 1000 Mbps Full Duplex, Flow Control: Rx/Tx
+
+[    6.488095] mount_root: mounting /dev/root with options 
+[    6.519169] EXT4-fs (vda2): re-mounted ff313567-e9f1-5a5d-9895-3ba130b4a864 r/w.
+[    6.912224] urandom-seed: Seed file not found (/etc/urandom.seed)
+- generating board file -
+[    7.009445] e1000e 0000:00:03.0 eth0: NIC Link is Down
+[    7.011815] procd: - early -
+[    7.518844] procd: - ubus -
+[    7.578130] procd: - init -
+Please press Enter to activate this console.
+[    7.626701] urngd: v1.0.2 started.
+[    7.638302] kmodloader: loading kernel modules from /etc/modules.d/*
+[    7.645239] zram: Added device: zram0
+[    7.647392] tun: Universal TUN/TAP device driver, 1.6
+[    7.650441] e1000: Intel(R) PRO/1000 Network Driver
+[    7.651697] e1000: Copyright (c) 1999-2006 Intel Corporation.
+[    7.654010] ixgbe: Intel(R) 10 Gigabit PCI Express Network Driver
+[    7.655980] ixgbe: Copyright (c) 1999-2016 Intel Corporation.
+[    7.659151] i2c_dev: i2c /dev entries driver
+[    7.668939] PPP generic driver version 2.4.2
+[    7.670468] NET: Registered PF_PPPOX protocol family
+[    7.672388] wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+[    7.674326] wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+echo @@CKREADY@@
+[    7.683046] kmodloader: done loading kernel modules from /etc/modules.d/*
+login[1271]: root login on 'ttyS0'
+
+BusyBox v1.37.0 (2026-09-25 07:06:29 UTC) built-in shell (ash)
+
+  _______                     ________        __
+ |       |.-----.-----.-----.|  |  |  |.----.|  |_
+ |   -   ||  _  |  -__|     ||  |  |  ||   _||   _|
+ |_______||   __|_____|__|__||________||__|  |____|
+          |__| W I R E L E S S   F R E E D O M
+ -----------------------------------------------------
+ OpenWrt 25.12.5, r33051-f5dae5ece4 Dave's Guitar
+ -----------------------------------------------------
+
+ === WARNING! =====================================
+ There is no root password defined on this device!
+ Use the "passwd" command to set up a new password
+ in order to prevent unauthorized SSH logins.
+ --------------------------------------------------
+
+ OpenWrt recently switched to the "apk" package manager!
+
+ OPKG Command           APK Equivalent      Description
+ ------------------------------------------------------------------
+ opkg install <pkg>     apk add <pkg>       Install a package
+ opkg remove <pkg>      apk del <pkg>       Remove a package
+ opkg upgrade           apk upgrade         Upgrade all packages
+ opkg files <pkg>       apk info -L <pkg>   List package contents
+ opkg list-installed    apk info            List installed packages
+ opkg update            apk update          Update package lists
+ opkg search <pkg>      apk search <pkg>    Search for packages
+ ------------------------------------------------------------------
+
+For more information visit:
+https://openwrt.org/docs/guide-user/additional-software/opkg-to-apk-cheatsheet
+
+root@(none):~# [    7.879190] zram0: detected capacity change from 0 to 2537472
+[    7.886627] Adding 1268732k swap on /dev/zram0.  Priority:100 extents:1 across:1268732k SSDsc
+[    8.365620] 8021q: adding VLAN 0 to HW filter on device eth2
+[    8.367916] br-lan: port 1(eth2) entered blocking state
+[    8.369674] br-lan: port 1(eth2) entered disabled state
+[    8.371405] e1000e 0000:00:05.0 eth2: entered allmulticast mode
+[    8.373684] e1000e 0000:00:05.0 eth2: entered promiscuous mode
+[    8.625529] 8021q: adding VLAN 0 to HW filter on device eth3
+[    8.627143] br-lan: port 2(eth3) entered blocking state
+[    8.628508] br-lan: port 2(eth3) entered disabled state
+[    8.629865] e1000e 0000:00:06.0 eth3: entered allmulticast mode
+[    8.631914] e1000e 0000:00:06.0 eth3: entered promiscuous mode
+[    8.868891] e1000e 0000:00:05.0 eth2: NIC Link is Up 1000 Mbps Full Duplex, Flow Control: Rx/Tx
+[    8.882601] 8021q: adding VLAN 0 to HW filter on device eth1
+[    8.884181] br-lan: port 1(eth2) entered blocking state
+[    8.885565] br-lan: port 1(eth2) entered forwarding state
+[    9.119212] e1000e 0000:00:06.0 eth3: NIC Link is Up 1000 Mbps Full Duplex, Flow Control: Rx/Tx
+[    9.132152] 8021q: adding VLAN 0 to HW filter on device eth0
+[    9.133752] br-lan: port 2(eth3) entered blocking state
+[    9.135107] br-lan: port 2(eth3) entered forwarding state
+[    9.379213] e1000e 0000:00:04.0 eth1: NIC Link is Up 1000 Mbps Full Duplex, Flow Control: Rx/Tx
+[    9.629385] e1000e 0000:00:03.0 eth0: NIC Link is Up 1000 Mbps Full Duplex, Flow Control: Rx/Tx
+echo @@CKREADY@@
+@@CKREADY@@
+root@cnc1338np12:~# ck(){ n="$1"; shift; if "$@" >/dev/null 2>&1; then echo "@@C
+
+K@@ $n OK"; else echo "@@CK@@ $n FAIL"; fi; }
+root@cnc1338np12:~# ckx(){ n="$1"; if sh -c "$2" >/dev/null 2>&1; then echo "@@C
+
+K@@ $n OK"; else echo "@@CK@@ $n FAIL"; fi; }
+root@cnc1338np12:~# ck 'openwrt_release' test -s /etc/openwrt_release
+@@CK@@ openwrt_release OK
+root@cnc1338np12:~# ckx 'version_25_12_5' 'grep -q "DISTRIB_RELEASE=.25\.12\.5" 
+
+/etc/openwrt_release'
+@@CK@@ version_25_12_5 OK
+root@cnc1338np12:~# ckx 'kernel_6_12_94' 'test "$(uname -r)" = 6.12.94'
+@@CK@@ kernel_6_12_94 OK
+root@cnc1338np12:~# ckx 'hostname' 'test "$(cat /proc/sys/kernel/hostname)" = cn
+
+c1338np12'
+@@CK@@ hostname OK
+root@cnc1338np12:~# ckx 'timezone_cst8' 'test "$(uci -q get system.@system[0].ti
+
+mezone)" = CST-8'
+@@CK@@ timezone_cst8 OK
+root@cnc1338np12:~# ckx 'ttylogin_off' 'test "$(uci -q get system.@system[0].tty
+
+login)" = 0'
+@@CK@@ ttylogin_off OK
+root@cnc1338np12:~# ckx 'wan_proto_pppoe' 'test "$(uci -q get network.wan.proto)
+
+" = pppoe'
+@@CK@@ wan_proto_pppoe OK
+root@cnc1338np12:~# ckx 'wan_device_eth0' 'test "$(uci -q get network.wan.device
+
+)" = eth0'
+@@CK@@ wan_device_eth0 OK
+root@cnc1338np12:~# ckx 'wan_ipv6_auto' 'test "$(uci -q get network.wan.ipv6)" =
+
+ auto'
+@@CK@@ wan_ipv6_auto OK
+root@cnc1338np12:~# ckx 'iptv_device_eth1' 'test "$(uci -q get network.iptv.devi
+
+ce)" = eth1'
+@@CK@@ iptv_device_eth1 OK
+root@cnc1338np12:~# ckx 'iptv_ipv6_off' 'test "$(uci -q get network.iptv.ipv6)" 
+
+= 0'
+@@CK@@ iptv_ipv6_off OK
+root@cnc1338np12:~# ckx 'iptv_no_defaultroute' 'test "$(uci -q get network.iptv.
+
+defaultroute)" = 0'
+@@CK@@ iptv_no_defaultroute OK
+root@cnc1338np12:~# ckx 'lan_ip_192_168_2_1' 'test "$(uci -q get network.lan.ipa
+
+ddr)" = 192.168.2.1'
+@@CK@@ lan_ip_192_168_2_1 OK
+root@cnc1338np12:~# ckx 'lan_ip6assign_60' 'test "$(uci -q get network.lan.ip6as
+
+sign)" = 60'
+@@CK@@ lan_ip6assign_60 OK
+root@cnc1338np12:~# ckx 'brlan_ports_cfg_eth2' 'uci -q get network.@device[0].po
+
+rts | grep -qw eth2'
+@@CK@@ brlan_ports_cfg_eth2 OK
+root@cnc1338np12:~# ckx 'brlan_ports_cfg_eth3' 'uci -q get network.@device[0].po
+
+rts | grep -qw eth3'
+@@CK@@ brlan_ports_cfg_eth3 OK
+root@cnc1338np12:~# ckx 'packet_steering_on' 'test "$(uci -q get network.globals
+
+.packet_steering)" = 1'
+@@CK@@ packet_steering_on OK
+root@cnc1338np12:~# ckx 'dhcpv6_server' 'test "$(uci -q get dhcp.lan.dhcpv6)" = 
+
+server'
+@@CK@@ dhcpv6_server OK
+root@cnc1338np12:~# ckx 'ra_server' 'test "$(uci -q get dhcp.lan.ra)" = server'
+@@CK@@ ra_server OK
+root@cnc1338np12:~# ckx 'ra_slaac_on' 'test "$(uci -q get dhcp.lan.ra_slaac)" = 
+
+1'
+@@CK@@ ra_slaac_on OK
+root@cnc1338np12:~# ckx 'firewall_wan6_zone' 'uci show firewall | grep -q wan_6'
+
+@@CK@@ firewall_wan6_zone OK
+root@cnc1338np12:~# ckx 'firewall_wan6_once' 'test "$(uci -q show firewall | sed
+
+ -n "s/.*network=//p" | tr " " "\n" | tr -d "'\''" | grep -cw wan6)" = 1'
+@@CK@@ firewall_wan6_once OK
+root@cnc1338np12:~# ckx 'firewall_wan_6_once' 'test "$(uci -q show firewall | se
+
+d -n "s/.*network=//p" | tr " " "\n" | tr -d "'\''" | grep -cw wan_6)" = 1'
+@@CK@@ firewall_wan_6_once OK
+root@cnc1338np12:~# ckx 'dns_aliyun' 'uci show dhcp | grep -q 223.5.5.5'
+@@CK@@ dns_aliyun OK
+root@cnc1338np12:~# ckx 'dns_dnspod' 'uci show dhcp | grep -q 119.29.29.29'
+@@CK@@ dns_dnspod OK
+root@cnc1338np12:~# ckx 'dns_aliyun_once' 'test "$(uci -q show dhcp | sed -n "s/
+
+.*server=//p" | tr " " "\n" | tr -d "'\''" | grep -cw 223.5.5.5)" = 1'
+@@CK@@ dns_aliyun_once OK
+root@cnc1338np12:~# ckx 'argon_default_theme' 'test "$(uci -q get luci.main.medi
+
+aurlbase)" = /luci-static/argon'
+@@CK@@ argon_default_theme OK
+root@cnc1338np12:~# ckx 'argon_lang_zh_cn' 'test "$(uci -q get luci.main.lang)" 
+
+= zh_cn'
+@@CK@@ argon_lang_zh_cn OK
+root@cnc1338np12:~# ck 'argon_dir' test -d /www/luci-static/argon
+@@CK@@ argon_dir OK
+root@cnc1338np12:~# ckx 'argon_css_files' 'find /www/luci-static/argon -name "*.
+
+css" 2>/dev/null | grep -q .'
+@@CK@@ argon_css_files OK
+root@cnc1338np12:~# ckx 'openclash_init' 'test -x /etc/init.d/openclash'
+@@CK@@ openclash_init OK
+root@cnc1338np12:~# ck 'openclash_dir' test -d /usr/share/openclash
+@@CK@@ openclash_dir OK
+root@cnc1338np12:~# ckx 'openclash_luci_files' 'find /www/luci-static/resources 
+
+-name "*openclash*" 2>/dev/null | grep -q .'
+@@CK@@ openclash_luci_files OK
+root@cnc1338np12:~# ckx 'lucky_init' 'test -x /etc/init.d/lucky'
+@@CK@@ lucky_init OK
+root@cnc1338np12:~# ck 'lucky_bin' test -x /usr/bin/lucky
+@@CK@@ lucky_bin OK
+root@cnc1338np12:~# ckx 'msd_lite_init' 'test -x /etc/init.d/msd_lite'
+@@CK@@ msd_lite_init OK
+root@cnc1338np12:~# ck 'msd_lite_bin' test -x /usr/bin/msd_lite
+@@CK@@ msd_lite_bin OK
+root@cnc1338np12:~# ckx 'vlmcsd_init' 'test -x /etc/init.d/vlmcsd'
+@@CK@@ vlmcsd_init OK
+root@cnc1338np12:~# ck 'vlmcsd_bin' test -x /usr/bin/vlmcsd
+@@CK@@ vlmcsd_bin OK
+root@cnc1338np12:~# ck 'vlmcsd_ini' test -f /etc/vlmcsd.ini
+@@CK@@ vlmcsd_ini OK
+root@cnc1338np12:~# ckx 'bandix_init' 'test -x /etc/init.d/bandix'
+@@CK@@ bandix_init OK
+root@cnc1338np12:~# ck 'bandix_bin' test -x /usr/bin/bandix
+@@CK@@ bandix_bin OK
+root@cnc1338np12:~# ck 'bandix_datadir' test -d /usr/share/bandix
+@@CK@@ bandix_datadir OK
+root@cnc1338np12:~# ck 'bandix_keepd' test -f /lib/upgrade/keep.d/bandix
+@@CK@@ bandix_keepd OK
+root@cnc1338np12:~# ckx 'wg_bin' 'command -v wg'
+@@CK@@ wg_bin OK
+root@cnc1338np12:~# ckx 'kmod_wireguard_ko' 'find /lib/modules -name "wireguard.
+
+ko*" | grep -q .'
+@@CK@@ kmod_wireguard_ko OK
+root@cnc1338np12:~# ckx 'wg_kmod_pkg' 'apk list --installed 2>/dev/null | grep -
+
+q "^kmod-wireguard"'
+@@CK@@ wg_kmod_pkg OK
+root@cnc1338np12:~# ckx 'wg_tools_pkg' 'apk list --installed 2>/dev/null | grep 
+
+-q "^wireguard-tools"'
+@@CK@@ wg_tools_pkg OK
+root@cnc1338np12:~# ckx 'wg_luci_pkg' 'apk list --installed 2>/dev/null | grep -
+
+q "^luci-proto-wireguard"'
+@@CK@@ wg_luci_pkg OK
+root@cnc1338np12:~# ckx 'wg_luci_files' 'find /www /usr/share/rpcd /usr/libexec 
+
+2>/dev/null -name "*wireguard*" | grep -q .'
+@@CK@@ wg_luci_files OK
+root@cnc1338np12:~# ck 'cnc_upgrade_bin' test -x /usr/sbin/cnc-upgrade
+@@CK@@ cnc_upgrade_bin OK
+root@cnc1338np12:~# ck 'cnc_upgrade_menu' test -f /usr/share/luci/menu.d/luci-ap
+
+p-cnc-upgrade.json
+@@CK@@ cnc_upgrade_menu OK
+root@cnc1338np12:~# ck 'cnc_upgrade_acl' test -f /usr/share/rpcd/acl.d/luci-app-
+
+cnc-upgrade.json
+@@CK@@ cnc_upgrade_acl OK
+root@cnc1338np12:~# ck 'cnc_upgrade_view' test -f /www/luci-static/resources/vie
+
+w/cnc_upgrade/upgrade.js
+@@CK@@ cnc_upgrade_view OK
+root@cnc1338np12:~# ck 'cnc_upgrade_keepd' test -f /lib/upgrade/keep.d/99-cnc-pl
+
+ugins
+@@CK@@ cnc_upgrade_keepd OK
+root@cnc1338np12:~# ck 'cnc_release_file' test -s /etc/cnc-release
+@@CK@@ cnc_release_file OK
+root@cnc1338np12:~# ckx 'cnc_upgrade_usage' '/usr/sbin/cnc-upgrade --help 2>&1 |
+
+ grep -q 用法'
+@@CK@@ cnc_upgrade_usage OK
+root@cnc1338np12:~# ckx 'kmod_igc_ko' 'find /lib/modules -name "igc.ko*" | grep 
+
+-q .'
+@@CK@@ kmod_igc_ko OK
+root@cnc1338np12:~# ckx 'kmod_tun_ko' 'find /lib/modules -name "tun.ko*" | grep 
+
+-q .'
+@@CK@@ kmod_tun_ko OK
+root@cnc1338np12:~# ckx 'kmod_zram_ko' 'find /lib/modules -name "zram.ko*" | gre
+
+p -q .'
+@@CK@@ kmod_zram_ko OK
+root@cnc1338np12:~# ckx 'kmod_e1000e_ko' 'find /lib/modules -name "e1000e.ko*" |
+
+ grep -q .'
+@@CK@@ kmod_e1000e_ko OK
+root@cnc1338np12:~# ckx 'dnsmasq_full' 'apk list --installed 2>/dev/null | grep 
+
+-q "^dnsmasq-full"'
+@@CK@@ dnsmasq_full OK
+root@cnc1338np12:~# ckx 'dnsmasq_replaced' '! apk list --installed 2>/dev/null |
+
+ grep -qE "^dnsmasq-[0-9]"'
+@@CK@@ dnsmasq_replaced OK
+root@cnc1338np12:~# ckx 'ipv6_not_disabled' 'test "$(cat /proc/sys/net/ipv6/conf
+
+/all/disable_ipv6)" = 0'
+@@CK@@ ipv6_not_disabled OK
+root@cnc1338np12:~# ckx 'zram_swap_active' 'grep -q zram /proc/swaps'
+@@CK@@ zram_swap_active OK
+root@cnc1338np12:~# ckx 'ubus_alive' 'ubus -S list | grep -q "^uci$"'
+@@CK@@ ubus_alive OK
+root@cnc1338np12:~# ckx 'uhttpd_running' 'pgrep uhttpd'
+@@CK@@ uhttpd_running OK
+root@cnc1338np12:~# ckx 'luci_static_js' 'test "$(wget -qO- http://127.0.0.1/luc
+
+i-static/resources/luci.js 2>/dev/null | wc -c)" -gt 1000'
+@@CK@@ luci_static_js OK
+root@cnc1338np12:~# ckx 'luci_web_root' 'wget -qO- http://127.0.0.1/ 2>/dev/null
+
+ | grep -qi "luci"'
+@@CK@@ luci_web_root OK
+root@cnc1338np12:~# ckx 'luci_cgi_answers' 'wget -O- http://127.0.0.1/cgi-bin/lu
+
+ci/ 2>&1 | grep -qE "HTTP error (200|302|401|403)"'
+@@CK@@ luci_cgi_answers OK
+root@cnc1338np12:~# ckx 'eth0_exists' 'ip -o link show eth0'
+@@CK@@ eth0_exists OK
+root@cnc1338np12:~# ckx 'eth1_exists' 'ip -o link show eth1'
+@@CK@@ eth1_exists OK
+root@cnc1338np12:~# ckx 'eth3_exists' 'ip -o link show eth3'
+@@CK@@ eth3_exists OK
+root@cnc1338np12:~# ckx 'brlan_exists' 'ip -o link show br-lan'
+@@CK@@ brlan_exists OK
+root@cnc1338np12:~# ckx 'brlan_ipv4' 'ip -4 -o addr show br-lan | grep -q 192.16
+
+8.2.1'
+@@CK@@ brlan_ipv4 OK
+root@cnc1338np12:~# ckx 'brlan_port_eth2_up' 'ip -o link show eth2 | grep -q "ma
+
+ster br-lan"'
+@@CK@@ brlan_port_eth2_up OK
+root@cnc1338np12:~# ckx 'brlan_ipv6_ll' 'ip -6 -o addr show br-lan | grep -q "sc
+
+ope link"'
+@@CK@@ brlan_ipv6_ll OK
+root@cnc1338np12:~# ckx 'eth0_not_in_bridge' '! ip -o link show eth0 | grep -q "
+
+master br-lan"'
+@@CK@@ eth0_not_in_bridge OK
+root@cnc1338np12:~# ckx 'eth1_not_in_bridge' '! ip -o link show eth1 | grep -q "
+
+master br-lan"'
+@@CK@@ eth1_not_in_bridge OK
+root@cnc1338np12:~# echo @@B@@
+@@B@@
+root@cnc1338np12:~# uname -a
+Linux cnc1338np12 6.12.94 #0 SMP Mon Jun 29 12:59:20 2026 x86_64 GNU/Linux
+root@cnc1338np12:~# cat /etc/openwrt_release 2>/dev/null
+DISTRIB_ID='OpenWrt'
+DISTRIB_RELEASE='25.12.5'
+DISTRIB_REVISION='r33051-f5dae5ece4'
+DISTRIB_TARGET='x86/64'
+DISTRIB_ARCH='x86_64'
+DISTRIB_DESCRIPTION='OpenWrt 25.12.5 r33051-f5dae5ece4'
+DISTRIB_TAINTS=''
+root@cnc1338np12:~# cat /etc/cnc-release 2>/dev/null
+OPENWRT_VERSION=25.12.5
+FIRMWARE_BUILD=r1
+FIRMWARE_NAME=cnc1338np12
+KVER=6.12.94
+TARGET=x86/64
+KERNEL_PARTSIZE=64
+ROOTFS_PARTSIZE=4096
+BUILT_AT=2026-09-27T14:58:55Z
+BUILT_BY=local
+root@cnc1338np12:~# uci show network
+network.loopback=interface
+network.loopback.device='lo'
+network.loopback.proto='static'
+network.loopback.ipaddr='127.0.0.1/8'
+network.globals=globals
+network.globals.dhcp_default_duid='00041b31a0de7a564aaa9af959ca27f1d695'
+network.globals.ula_prefix='fd01:9358:1333::/48'
+network.globals.packet_steering='1'
+network.@device[0]=device
+network.@device[0].name='br-lan'
+network.@device[0].type='bridge'
+network.@device[0].ports='eth2' 'eth3'
+network.lan=interface
+network.lan.device='br-lan'
+network.lan.proto='static'
+network.lan.ipaddr='192.168.2.1'
+network.lan.netmask='255.255.255.0'
+network.lan.ip6assign='60'
+network.wan=interface
+network.wan.device='eth0'
+network.wan.proto='pppoe'
+network.wan.peerdns='1'
+network.wan.ipv6='auto'
+network.iptv=interface
+network.iptv.device='eth1'
+network.iptv.proto='dhcp'
+network.iptv.defaultroute='0'
+network.iptv.peerdns='0'
+network.iptv.delegate='0'
+network.iptv.multipath='off'
+network.iptv.ipv6='0'
+root@cnc1338np12:~# uci show firewall | head -n 40
+firewall.@defaults[0]=defaults
+firewall.@defaults[0].syn_flood='1'
+firewall.@defaults[0].input='REJECT'
+firewall.@defaults[0].output='ACCEPT'
+firewall.@defaults[0].forward='REJECT'
+firewall.@zone[0]=zone
+firewall.@zone[0].name='lan'
+firewall.@zone[0].network='lan'
+firewall.@zone[0].input='ACCEPT'
+firewall.@zone[0].output='ACCEPT'
+firewall.@zone[0].forward='ACCEPT'
+firewall.@zone[1]=zone
+firewall.@zone[1].name='wan'
+firewall.@zone[1].network='wan' 'wan6' 'wan_6'
+firewall.@zone[1].input='REJECT'
+firewall.@zone[1].output='ACCEPT'
+firewall.@zone[1].forward='DROP'
+firewall.@zone[1].masq='1'
+firewall.@zone[1].mtu_fix='1'
+firewall.@forwarding[0]=forwarding
+firewall.@forwarding[0].src='lan'
+firewall.@forwarding[0].dest='wan'
+firewall.@rule[0]=rule
+firewall.@rule[0].name='Allow-DHCP-Renew'
+firewall.@rule[0].src='wan'
+firewall.@rule[0].proto='udp'
+firewall.@rule[0].dest_port='68'
+firewall.@rule[0].target='ACCEPT'
+firewall.@rule[0].family='ipv4'
+firewall.@rule[1]=rule
+firewall.@rule[1].name='Allow-Ping'
+firewall.@rule[1].src='wan'
+firewall.@rule[1].proto='icmp'
+firewall.@rule[1].icmp_type='echo-request'
+firewall.@rule[1].family='ipv4'
+firewall.@rule[1].target='ACCEPT'
+firewall.@rule[2]=rule
+firewall.@rule[2].name='Allow-IGMP'
+firewall.@rule[2].src='wan'
+firewall.@rule[2].proto='igmp'
+root@cnc1338np12:~# cat /etc/config/uhttpd
+
+config uhttpd 'main'
+	list listen_http '0.0.0.0:80'
+	list listen_http '[::]:80'
+	list listen_https '0.0.0.0:443'
+	list listen_https '[::]:443'
+	option redirect_https '0'
+	option home '/www'
+	option rfc1918_filter '1'
+	option max_requests '50'
+	option max_connections '100'
+	option cert '/etc/uhttpd.crt'
+	option key '/etc/uhttpd.key'
+	option cgi_prefix '/cgi-bin'
+	list lua_prefix '/cgi-bin/luci=/usr/lib/lua/luci/sgi/uhttpd.lua'
+	option script_timeout '3600'
+	option network_timeout '30'
+	option http_keepalive '20'
+	option tcp_keepalive '1'
+	option ubus_prefix '/ubus'
+
+config cert 'defaults'
+	option days '397'
+	option key_type 'ec'
+	option bits '2048'
+	option ec_curve 'P-256'
+	option country 'ZZ'
+	option state 'Somewhere'
+	option location 'Unknown'
+	option commonname 'OpenWrt'
+
+root@cnc1338np12:~# ls /etc/uci-defaults/
+root@cnc1338np12:~# ip -o link show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000\    link/ether 52:54:00:12:34:56 brd ff:ff:ff:ff:ff:ff
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000\    link/ether 52:54:00:12:34:57 brd ff:ff:ff:ff:ff:ff
+4: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel master br-lan state UP mode DEFAULT group default qlen 1000\    link/ether 52:54:00:12:34:58 brd ff:ff:ff:ff:ff:ff
+5: eth3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel master br-lan state UP mode DEFAULT group default qlen 1000\    link/ether 52:54:00:12:34:59 brd ff:ff:ff:ff:ff:ff
+6: br-lan: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default qlen 1000\    link/ether 52:54:00:12:34:58 brd ff:ff:ff:ff:ff:ff
+root@cnc1338np12:~# ip -4 -o addr show
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+3: eth1    inet 10.0.2.15/24 brd 10.0.2.255 scope global eth1\       valid_lft forever preferred_lft forever
+6: br-lan    inet 192.168.2.1/24 brd 192.168.2.255 scope global br-lan\       valid_lft forever preferred_lft forever
+root@cnc1338np12:~# ip -6 -o addr show | head -n 12
+1: lo    inet6 ::1/128 scope host proto kernel_lo \       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::5054:ff:fe12:3456/64 scope link proto kernel_ll \       valid_lft forever preferred_lft forever
+6: br-lan    inet6 fd01:9358:1333::1/60 scope global noprefixroute \       valid_lft forever preferred_lft forever
+6: br-lan    inet6 fe80::5054:ff:fe12:3458/64 scope link proto kernel_ll \       valid_lft forever preferred_lft forever
+root@cnc1338np12:~# free
+              total        used        free      shared  buff/cache   available
+Mem:        2033660       95208     1899056         284       39396     1886288
+Swap:       1268732           0     1268732
+root@cnc1338np12:~# apk list --installed 2>/dev/null | wc -l
+281
+root@cnc1338np12:~# ubus call system board 2>/dev/null
+{
+	"kernel": "6.12.94",
+	"hostname": "cnc1338np12",
+	"system": "Genuine Intel(R) 0000 @ 1.80GHz",
+	"model": "QEMU Standard PC (i440FX + PIIX, 1996)",
+	"board_name": "qemu-standard-pc-i440fx-piix-1996",
+	"rootfs_type": "ext4",
+	"release": {
+		"distribution": "OpenWrt",
+		"version": "25.12.5",
+		"firmware_url": "https://downloads.openwrt.org/",
+		"revision": "r33051-f5dae5ece4",
+		"target": "x86/64",
+		"description": "OpenWrt 25.12.5 r33051-f5dae5ece4",
+		"builddate": "1782737960"
+	}
+}
+root@cnc1338np12:~# ls /www/luci-static/ | head -n 12
+argon
+bootstrap
+bootstrap-dark
+bootstrap-light
+resources
+root@cnc1338np12:~# ls /www/luci-static/resources/ 2>/dev/null | head -n 8
+cbi
+cbi.js
+firewall.js
+form.js
+fs.js
+icons
+luci.js
+menu-argon.js
+root@cnc1338np12:~# wget -O- http://127.0.0.1/ 2>&1 | head -c 200; echo
+Downloading 'http://127.0.0.1/'
+Connecting to 127.0.0.1:80
+Writing to stdout
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+		<meta 
+root@cnc1338np12:~# wget -O- http://127.0.0.1/cgi-bin/luci/ 2>&1 | head -c 200; 
+
+echo
+Downloading 'http://127.0.0.1/cgi-bin/luci/'
+Connecting to 127.0.0.1:80
+HTTP error 403
+
+root@cnc1338np12:~# wget -O- http://127.0.0.1/luci-static/resources/luci.js 2>/d
+
+ev/null | wc -c
+29565
+root@cnc1338np12:~# logread 2>/dev/null | grep -iE 'cnc|firewall|uci-default' | 
+
+tail -n 15
+Sun Sep 27 23:15:33 2026 user.notice ucitrack: Setting up /etc/config/luci-splash reload dependency on /etc/config/firewall
+Sun Sep 27 23:15:33 2026 user.notice ucitrack: Setting up /etc/config/qos reload dependency on /etc/config/firewall
+Sun Sep 27 23:15:33 2026 user.notice ucitrack: Setting up /etc/config/miniupnpd reload dependency on /etc/config/firewall
+Sun Sep 27 23:15:33 2026 user.notice firewall: Reloading firewall due to ifup of lan (br-lan)
+root@cnc1338np12:~# logread 2>/dev/null | tail -n 15
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for onion
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for localhost
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for local
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for invalid
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for bind
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: using only locally-known addresses for lan
+Sun Sep 27 23:15:35 2026 daemon.warn dnsmasq[1]: no servers found in /tmp/resolv.conf.d/resolv.conf.auto, will retry
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /etc/hosts - 12 names
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /tmp/hosts/dhcp.cfg01411c - 0 names
+Sun Sep 27 23:15:35 2026 user.notice dnsmasq: found already running DHCP-server on interface 'br-lan' refusing to start, use 'option force 1' to override
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /etc/hosts - 12 names
+Sun Sep 27 23:15:35 2026 daemon.info dnsmasq[1]: read /tmp/hosts/dhcp.cfg01411c - 0 names
+Sun Sep 27 23:15:52 2026 daemon.warn odhcpd[2297]: No default route present, setting ra_lifetime to 0!
+Sun Sep 27 23:15:52 2026 daemon.warn odhcpd[2297]: rfc9096: br-lan: piofile updated
+Sun Sep 27 23:16:08 2026 daemon.warn odhcpd[2297]: No default route present, setting ra_lifetime to 0!
+root@cnc1338np12:~# echo @@E@@
+@@E@@
+root@cnc1338np12:~# poweroff
+root@cnc1338np12:~# [   44.887241] br-lan: port 2(eth3) entered disabled state
+[   44.888613] br-lan: port 1(eth2) entered disabled state
+[   44.890825] e1000e 0000:00:05.0 eth2: left allmulticast mode
+[   44.892434] e1000e 0000:00:05.0 eth2: left promiscuous mode
+[   44.896675] br-lan: port 1(eth2) entered disabled state
+[   44.988948] e1000e 0000:00:05.0 eth2: NIC Link is Down
+[   45.137482] e1000e 0000:00:06.0 eth3: left allmulticast mode
+[   45.139040] e1000e 0000:00:06.0 eth3: left promiscuous mode
+[   45.143148] br-lan: port 2(eth3) entered disabled state
+[   45.239455] e1000e 0000:00:06.0 eth3: NIC Link is Down
+[   45.614257] e1000e 0000:00:04.0 eth1: NIC Link is Down
+[   45.940400] e1000e 0000:00:03.0 eth0: NIC Link is Down
+[   46.843754] EXT4-fs (vda2): re-mounted ff313567-e9f1-5a5d-9895-3ba130b4a864 ro.
+[   49.856398] e1000e: EEE TX LPI TIMER: 00000000
+[   49.861706] e1000e: EEE TX LPI TIMER: 00000000
+[   49.867042] e1000e: EEE TX LPI TIMER: 00000000
+[   49.872429] e1000e: EEE TX LPI TIMER: 00000000
+[   49.877020] ACPI: PM: Preparing to enter system sleep state S5
+[   49.879679] reboot: Power down
