@@ -35,8 +35,10 @@ ok()  { PASS=$((PASS+1)); printf '  %s✔%s %s\n' "$c_g" "$c_0" "$*"; }
 bad() { FAIL=$((FAIL+1)); FAILED+=("$*"); printf '  %s✘ %s%s\n' "$c_r" "$*" "$c_0"; }
 sec() { printf '\n%s── %s%s\n' "$c_b" "$*" "$c_0"; }
 
-WORKTMP="$(mktemp -d "$(dirname "$(readlink -f "$IMG")")/.verify.XXXXXX")" \
-	|| { echo "无法在镜像所在目录创建临时目录"; exit 1; }
+WORKBASE="${CNC_VERIFY_WORK:-$(dirname "$(readlink -f "$IMG")")}"
+[ -w "$WORKBASE" ] || WORKBASE="$(dirname "$(readlink -f "$IMG")")"
+WORKTMP="$(mktemp -d "$WORKBASE/.verify.XXXXXX")" \
+	|| { echo "无法在 $WORKBASE 创建临时目录"; exit 1; }
 MNT1="$WORKTMP/esp"; MNT2="$WORKTMP/root"
 LOOP1=""; LOOP2=""
 cleanup() {

@@ -59,8 +59,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential gawk getopt unzip file rsync wget git python3 \
-            zstd libncurses-dev libssl-dev dosfstools parted
+            build-essential gawk unzip file rsync wget git python3 \
+            zstd libncurses-dev libssl-dev util-linux ca-certificates
+          # 说明：getopt / losetup / blkid / mount 在 Debian/Ubuntu 上由 util-linux 提供
+          #（没有独立的 getopt 包，写了会 apt 失败）；dosfstools、parted 为可选。
 
       - name: 缓存 SDK / ImageBuilder 压缩包
         uses: actions/cache@v4
@@ -77,6 +79,8 @@ jobs:
           OPENWRT_VERSION: ${{ inputs.openwrt_version }}
           FIRMWARE_BUILD: ${{ inputs.firmware_build }}
           RUN_QEMU_SMOKE: ${{ inputs.run_smoke && '1' || '0' }}
+          # 离线校验要把镜像解压成约 4.2 GB：放到 runner 的大分区上，避免根分区吃紧
+          CNC_VERIFY_WORK: /mnt
         run: bash build.sh
 
       - name: 读取构建结果
