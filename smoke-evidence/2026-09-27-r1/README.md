@@ -16,7 +16,8 @@ boot_marker=Please press Enter to activate this console
 | 项 | 值 |
 |---|---|
 | 镜像 | `openwrt-25.12.5-x86-64-cnc1338np12-r1-ext4-combined-efi.img.gz` |
-| 镜像 sha256 | `bb5c8518f257acdefc095a34cf67464e52d7c976cf1d340f3bb2c881070b9bd9` |
+| 镜像 sha256 | `bb5c8518f257acdefc095a34cf67464e52d7c976cf1d340f3bb2c881070b9bd9`（本目录测的这份，构建机本地出的图） |
+| 同源 CI 产物 | 同一份源码在 GitHub Actions 上出的图是 `5ef3b06f0b70c6e541204100ef0943cd9a49e3659dea26f8fbdf8d289033a85f`（48,667,988 B）：两者只差镜像里的构建时间戳，内容等价（包清单都是 281 个） |
 | 分区指纹 | `entry1 64MiB@512` / `entry2 4096MiB@131584` / `entry128 32KiB@34 BIOSboot`（与 `layout-reference.txt` 一致） |
 | 内核 | 6.12.94（`uname -r` 实测） |
 | 运行环境 | Debian 13 虚拟机（4 vCPU / 8 GB）、QEMU 10.0.13、OVMF 4M、**KVM 加速**（嵌套虚拟化） |
