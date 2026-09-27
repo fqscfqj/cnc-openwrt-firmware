@@ -227,8 +227,8 @@ x|iptv_ipv6_off|test "$(uci -q get network.iptv.ipv6)" = 0
 x|iptv_no_defaultroute|test "$(uci -q get network.iptv.defaultroute)" = 0
 x|lan_ip_192_168_2_1|test "$(uci -q get network.lan.ipaddr)" = 192.168.2.1
 x|lan_ip6assign_60|test "$(uci -q get network.lan.ip6assign)" = 60
-x|brlan_ports_cfg_eth2|uci -q show network | grep -q "ports='eth2'"
-x|brlan_ports_cfg_eth3|uci -q show network | grep -q "ports='eth3'"
+x|brlan_ports_cfg_eth2|uci -q get network.@device[0].ports | grep -qw eth2
+x|brlan_ports_cfg_eth3|uci -q get network.@device[0].ports | grep -qw eth3
 x|packet_steering_on|test "$(uci -q get network.globals.packet_steering)" = 1
 # --- IPv6 服务端 ---
 x|dhcpv6_server|test "$(uci -q get dhcp.lan.dhcpv6)" = server
@@ -284,10 +284,13 @@ x|ipv6_not_disabled|test "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6)" = 0
 x|zram_swap_active|grep -q zram /proc/swaps
 x|ubus_alive|ubus -S list | grep -q "^uci$"
 x|uhttpd_running|pgrep uhttpd
-# 注意：busybox wget 没有 -S（拿不到状态行），所以用"真的取到 LuCI 静态资源"来证明 Web 可用；
-#       uci get 对 list 选项是**空格分隔输出**，比较列表值时必须用 grep -w，不能用 -x。
+# 注意：busybox wget 没有 -S（拿不到状态行）。实测取证：
+#   http://127.0.0.1/            → 200 + LuCI 的 HTML
+#   http://127.0.0.1/cgi-bin/luci/ → HTTP error 403（没有会话时的正常响应）
+#   http://…/luci-static/resources/luci.js → 真的返回 JS 内容
 x|luci_static_js|test "$(wget -qO- http://127.0.0.1/luci-static/resources/luci.js 2>/dev/null | wc -c)" -gt 1000
-x|luci_cgi_http|test "$(wget -qO- http://127.0.0.1/cgi-bin/luci/ 2>/dev/null | wc -c)" -gt 0
+x|luci_web_root|wget -qO- http://127.0.0.1/ 2>/dev/null | grep -qi "luci"
+x|luci_cgi_answers|wget -O- http://127.0.0.1/cgi-bin/luci/ 2>&1 | grep -qE "HTTP error (200|302|401|403)"
 # --- 真实网络栈（QEMU 里 4 个口都在 ⇒ br-lan 应该真的起来） ---
 x|eth0_exists|ip -o link show eth0
 x|eth1_exists|ip -o link show eth1
