@@ -1,0 +1,4 @@
+entry1 start_lba=512      size_mib=64     type=LinuxFS    label=
+entry2 start_lba=131584   size_mib=4096   type=LinuxFS    label=
+entry128 start_lba=34       size_mib=0      type=BIOSboot   label=
+#count=3
