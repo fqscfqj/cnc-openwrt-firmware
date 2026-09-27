@@ -13,10 +13,26 @@
 # firewall3 包提供、firewall4(fw4) 并不提供，所以这里显式把 wan6 与 wan_6
 # 都列入 wan zone。多列一个不存在的接口在 OpenWrt 里是被容忍的——官方默认
 # 配置本身就列了 wan6。
-if uci -q get firewall.wan >/dev/null 2>&1; then
+#
+# ★ 注意：官方默认 firewall 里的 wan zone 是**匿名段**（config zone + option
+#   name 'wan'），所以不能用 `uci get firewall.wan` 去找——那样永远找不到，
+#   2026-09 的 QEMU 冒烟就是这样抓到 wan_6 没被加进 zone 的。只能按 name 扫。
+wanzone=""
+zi=0
+while [ "$zi" -lt 32 ]; do
+	[ -n "$(uci -q get "firewall.@zone[$zi]")" ] || break
+	if [ "$(uci -q get "firewall.@zone[$zi].name")" = "wan" ]; then
+		wanzone="firewall.@zone[$zi]"
+		break
+	fi
+	zi=$((zi + 1))
+done
+if [ -n "$wanzone" ]; then
 	for net in wan6 wan_6; do
-		uci -q get firewall.wan.network | grep -qx "$net" || uci add_list firewall.wan.network="$net"
+		uci -q get "$wanzone.network" | grep -qx "$net" || uci add_list "$wanzone.network=$net"
 	done
+else
+	logger -t cnc-defaults "找不到名为 wan 的 firewall zone，跳过 wan6/wan_6 登记"
 fi
 
 # ------------------------------------------------------------------ DNS 上游

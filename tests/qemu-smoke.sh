@@ -227,8 +227,8 @@ x|iptv_ipv6_off|test "$(uci -q get network.iptv.ipv6)" = 0
 x|iptv_no_defaultroute|test "$(uci -q get network.iptv.defaultroute)" = 0
 x|lan_ip_192_168_2_1|test "$(uci -q get network.lan.ipaddr)" = 192.168.2.1
 x|lan_ip6assign_60|test "$(uci -q get network.lan.ip6assign)" = 60
-x|brlan_port_eth2|uci -q get network.@device[0].ports | grep -qx eth2
-x|brlan_port_eth3|uci -q get network.@device[0].ports | grep -qx eth3
+x|brlan_ports_cfg_eth2|uci -q show network | grep -q "ports='eth2'"
+x|brlan_ports_cfg_eth3|uci -q show network | grep -q "ports='eth3'"
 x|packet_steering_on|test "$(uci -q get network.globals.packet_steering)" = 1
 # --- IPv6 服务端 ---
 x|dhcpv6_server|test "$(uci -q get dhcp.lan.dhcpv6)" = server
@@ -278,12 +278,13 @@ x|kmod_tun_ko|find /lib/modules -name "tun.ko*" | grep -q .
 x|kmod_zram_ko|find /lib/modules -name "zram.ko*" | grep -q .
 x|kmod_e1000e_ko|find /lib/modules -name "e1000e.ko*" | grep -q .
 x|dnsmasq_full|apk list --installed 2>/dev/null | grep -q "^dnsmasq-full"
-x|dnsmasq_replaced|! apk list --installed 2>/dev/null | grep -q "^dnsmasq "
+x|dnsmasq_replaced|! apk list --installed 2>/dev/null | grep -qE "^dnsmasq-[0-9]"
 x|ipv6_not_disabled|test "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6)" = 0
 x|zram_swap_active|grep -q zram /proc/swaps
 x|ubus_alive|ubus -S list | grep -q "^uci$"
 x|uhttpd_running|pgrep uhttpd
-x|luci_http_ok|wget -qO- http://127.0.0.1/cgi-bin/luci/ 2>/dev/null | grep -qi "luci\|login"
+x|luci_http_ok|wget -S -O /dev/null http://127.0.0.1/cgi-bin/luci/ 2>&1 | grep -qE "HTTP/[0-9.]+ [0-9][0-9][0-9]"
+x|luci_page_body|wget -qO- http://127.0.0.1/cgi-bin/luci/ 2>/dev/null | grep -qiE "luci|login|password|<html"
 # --- 真实网络栈（QEMU 里 4 个口都在 ⇒ br-lan 应该真的起来） ---
 x|eth0_exists|ip -o link show eth0
 x|eth1_exists|ip -o link show eth1
@@ -515,12 +516,18 @@ info_cmds = [
     "uname -a",
     "cat /etc/openwrt_release 2>/dev/null",
     "cat /etc/cnc-release 2>/dev/null",
+    "uci show network",
+    "uci show firewall | head -n 40",
+    "cat /etc/config/uhttpd",
+    "ls /etc/uci-defaults/",
     "ip -o link show",
     "ip -4 -o addr show",
     "ip -6 -o addr show | head -n 12",
     "free",
     "apk list --installed 2>/dev/null | wc -l",
     "ubus call system board 2>/dev/null",
+    "wget -S -O /dev/null http://127.0.0.1/cgi-bin/luci/ 2>&1 | head -n 15",
+    "logread 2>/dev/null | grep -iE 'cnc|firewall|uci-default' | tail -n 15",
     "logread 2>/dev/null | tail -n 15",
 ]
 print("  收集系统信息…")
