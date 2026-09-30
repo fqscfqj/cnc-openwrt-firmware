@@ -8,7 +8,7 @@
 * Web：**Argon 主题**（默认）+ 简体中文
 * 网络：**eth0 = WAN(PPPoE)**、eth1 = IPTV、eth2+eth3 = LAN 桥（192.168.2.1/24）
 * 另有：**WireGuard**（只装能力不预置隧道）、**IPv6 默认开启**、**网页一键在线升级**
-* 另装：**UPnP/NAT-PMP**（`miniupnpd-nftables` + LuCI 页，镜像里默认不开）、**x86 排障工具**（`lspci` / `lsusb` / `nvme` / `iperf3` / `tcpdump` / `mtr`）
+* 另装：**UPnP/NAT-PMP**（`miniupnpd-nftables` + LuCI 页，镜像里默认不开）、**x86 排障工具**（`lspci` / `lsusb` / `nvme` / `iperf3` / `tcpdump` / `mtr`，包名 `mtr-json`）
 
 ---
 

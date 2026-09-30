@@ -268,6 +268,7 @@ find "$MNT2/usr/sbin" "$MNT2/usr/bin" -name 'miniupnpd' 2>/dev/null | grep -q . 
 	&& ok "UPnP 的 LuCI 菜单已安装（服务 → UPnP/NAT-PMP）" \
 	|| bad "缺少 luci-app-upnp 的菜单文件（网页上会看不到 UPnP 页面）"
 # 工具按"找不找得到可执行文件"判断，不写死 /usr/bin 还是 /usr/sbin
+# （注意 mtr：包名是 mtr-json，但装出来的命令就叫 mtr）
 for t in lspci lsusb nvme iperf3 tcpdump mtr; do
 	find "$MNT2/usr/sbin" "$MNT2/usr/bin" -name "$t" 2>/dev/null | grep -q . \
 		&& ok "排障工具：$t" || bad "缺少排障工具 $t"
@@ -363,7 +364,7 @@ if [ -f "$MNT2/etc/apk/world" ]; then
 	         luci-app-vlmcsd luci-app-cnc-upgrade bandix luci-app-bandix \
 	         luci-theme-argon luci-app-argon-config \
 	         luci-i18n-bandix-zh-cn luci-i18n-argon-config-zh-cn luci-i18n-base-zh-cn \
-	         luci-i18n-firewall-zh-cn miniupnpd-nftables luci-app-upnp pciutils usbutils nvme-cli iperf3 tcpdump mtr luci-proto-wireguard wireguard-tools kmod-wireguard \
+	         luci-i18n-firewall-zh-cn miniupnpd-nftables luci-app-upnp pciutils usbutils nvme-cli iperf3 tcpdump mtr-json luci-proto-wireguard wireguard-tools kmod-wireguard \
 	         kmod-igc dnsmasq-full luci-proto-ipv6 odhcpd-ipv6only zram-swap; do
 		grep -qx "$p" "$MNT2/etc/apk/world" && ok "已安装 $p" || bad "清单里没有 $p"
 	done
