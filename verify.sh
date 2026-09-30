@@ -10,7 +10,7 @@
 #   1. gzip 完整性 + GPT 布局（分区个数/顺序/大小/类型/卷标）
 #   2. 分区表与 layout-reference.txt 逐行比对（保证"改版本号重编后仍能 sysupgrade 就地升级"）
 #   3. 挂载 ESP：grub.cfg 串口控制台 + failsafe + search -l kernel，以及 FAT 卷标 kernel
-#   4. 挂载 rootfs：四大插件 + Bandix + WireGuard + Argon + 网络/IPv6 预置 + 升级保留清单
+#   4. 挂载 rootfs：四大插件 + Bandix + WireGuard + Argon + UPnP + x86 排障工具 + 网络/IPv6 预置 + 升级保留清单
 #
 # 需要 root（loop 挂载）。只读挂载，不会修改镜像。
 #
@@ -259,12 +259,30 @@ for f in "usr/sbin/cnc-upgrade|在线升级脚本" \
 	[ -x "$MNT2/$p" ] && ok "$d 可执行" || bad "$d 没有可执行位（$p）"
 done
 
+sec "rootfs：UPnP/NAT-PMP 与 x86 排障工具（2026-10 补装）"
+[ -x "$MNT2/etc/init.d/miniupnpd" ] && ok "miniupnpd 服务脚本可执行" \
+	|| bad "缺少可执行的 /etc/init.d/miniupnpd（UPnP 装了也起不来）"
+find "$MNT2/usr/sbin" "$MNT2/usr/bin" -name 'miniupnpd' 2>/dev/null | grep -q . \
+	&& ok "miniupnpd 主程序存在" || bad "找不到 miniupnpd 主程序"
+[ -f "$MNT2/usr/share/luci/menu.d/luci-app-upnp.json" ] \
+	&& ok "UPnP 的 LuCI 菜单已安装（服务 → UPnP/NAT-PMP）" \
+	|| bad "缺少 luci-app-upnp 的菜单文件（网页上会看不到 UPnP 页面）"
+# 工具按"找不找得到可执行文件"判断，不写死 /usr/bin 还是 /usr/sbin
+for t in lspci lsusb nvme iperf3 tcpdump mtr; do
+	find "$MNT2/usr/sbin" "$MNT2/usr/bin" -name "$t" 2>/dev/null | grep -q . \
+		&& ok "排障工具：$t" || bad "缺少排障工具 $t"
+done
+
 sec "rootfs：Argon 主题与中文界面"
 [ -d "$MNT2/www/luci-static/argon" ] && ok "Argon 主题静态资源已安装" || bad "缺少 /www/luci-static/argon —— 主题 apk 没装上"
 grep -q "mediaurlbase '/luci-static/argon'" "$MNT2/etc/config/luci" 2>/dev/null \
 	&& ok "/etc/config/luci 默认主题 = argon" || bad "/etc/config/luci 未把 argon 设为默认主题"
 grep -q "lang 'zh_cn'" "$MNT2/etc/config/luci" 2>/dev/null \
 	&& ok "LuCI 默认语言 = zh_cn" || bad "LuCI 默认语言不是 zh_cn"
+# LuCI 的每个 app 各有独立语言包：只装 luci-i18n-base-zh-cn 时防火墙等页面仍是英文
+find "$MNT2/usr" -name 'firewall.zh-cn.lmo' 2>/dev/null | grep -q . \
+	&& ok "防火墙页面中文语言包已安装（luci-i18n-firewall-zh-cn）" \
+	|| bad "缺少 luci-i18n-firewall-zh-cn —— 防火墙页面会是英文"
 
 sec "rootfs：网络预置（eth0=WAN 与 IPv6）"
 NET="$MNT2/etc/config/network"
@@ -345,12 +363,16 @@ if [ -f "$MNT2/etc/apk/world" ]; then
 	         luci-app-vlmcsd luci-app-cnc-upgrade bandix luci-app-bandix \
 	         luci-theme-argon luci-app-argon-config \
 	         luci-i18n-bandix-zh-cn luci-i18n-argon-config-zh-cn luci-i18n-base-zh-cn \
-	         luci-proto-wireguard wireguard-tools kmod-wireguard \
+	         luci-i18n-firewall-zh-cn miniupnpd-nftables luci-app-upnp pciutils usbutils nvme-cli iperf3 tcpdump mtr luci-proto-wireguard wireguard-tools kmod-wireguard \
 	         kmod-igc dnsmasq-full luci-proto-ipv6 odhcpd-ipv6only zram-swap; do
 		grep -qx "$p" "$MNT2/etc/apk/world" && ok "已安装 $p" || bad "清单里没有 $p"
 	done
 	grep -qx 'dnsmasq' "$MNT2/etc/apk/world" && bad "dnsmasq 与 dnsmasq-full 同时存在（替换没生效）" \
 		|| ok "dnsmasq 已被 dnsmasq-full 替换"
+	# UPnP 必须是 nftables 版：iptables 版在 firewall4 上"能装不能生效"
+	grep -qx 'miniupnpd-iptables' "$MNT2/etc/apk/world" \
+		&& bad "装的是 miniupnpd-iptables（fw4/nftables 上规则不生效），应改为 miniupnpd-nftables" \
+		|| ok "miniupnpd 是 nftables 版（与 firewall4 匹配）"
 else
 	echo "  (未找到 /etc/apk/world，改用文件系统断言，上面已覆盖)"
 fi

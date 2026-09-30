@@ -262,6 +262,21 @@ x|bandix_init|test -x /etc/init.d/bandix
 c|bandix_bin|test -x /usr/bin/bandix
 c|bandix_datadir|test -d /usr/share/bandix
 c|bandix_keepd|test -f /lib/upgrade/keep.d/bandix
+# --- UPnP/NAT-PMP（2026-10 补装；镜像里默认不开，这里只验"装好且能起来"）---
+x|miniupnpd_init|test -x /etc/init.d/miniupnpd
+x|miniupnpd_bin|find /usr/sbin /usr/bin -name "miniupnpd" 2>/dev/null | grep -q .
+x|miniupnpd_pkg|apk list --installed 2>/dev/null | grep -q "^miniupnpd-nftables"
+x|miniupnpd_nft_variant|! apk list --installed 2>/dev/null | grep -q "^miniupnpd-iptables"
+x|upnp_luci_files|find /www/luci-static/resources -name "*upnp*" 2>/dev/null | grep -q .
+# --- x86 排障工具（2026-10 补装）---
+x|tool_lspci|command -v lspci
+x|tool_lsusb|command -v lsusb
+x|tool_nvme|command -v nvme
+x|tool_iperf3|command -v iperf3
+x|tool_tcpdump|command -v tcpdump
+x|tool_mtr|command -v mtr
+# --- 中文语言包：LuCI 每个 app 有独立语言包，防火墙页最常被漏 ---
+x|i18n_firewall_zh_cn|find /usr -name "firewall.zh-cn.lmo" 2>/dev/null | grep -q .
 # --- WireGuard ---
 x|wg_bin|command -v wg
 x|kmod_wireguard_ko|find /lib/modules -name "wireguard.ko*" | grep -q .

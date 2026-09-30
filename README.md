@@ -8,6 +8,7 @@
 * Web：**Argon 主题**（默认）+ 简体中文
 * 网络：**eth0 = WAN(PPPoE)**、eth1 = IPTV、eth2+eth3 = LAN 桥（192.168.2.1/24）
 * 另有：**WireGuard**（只装能力不预置隧道）、**IPv6 默认开启**、**网页一键在线升级**
+* 另装：**UPnP/NAT-PMP**（`miniupnpd-nftables` + LuCI 页，镜像里默认不开）、**x86 排障工具**（`lspci` / `lsusb` / `nvme` / `iperf3` / `tcpdump` / `mtr`）
 
 ---
 
@@ -41,13 +42,13 @@ FIRMWARE_BUILD=r2
 |---|---|
 | `versions.env` | **唯一的版本号文件**：OpenWrt 版本、第三方源 commit、14 个 apk 的版本与 sha256、包清单、布局常量 |
 | `build.sh` | 构建主脚本：自检 → 官方工具链（校验 sha256）→ 取源码（按 commit）→ SDK 编 7 个包 → ImageBuilder 出图 → 校验 |
-| `verify.sh` | 离线校验：GPT 布局、grub 串口/failsafe、四大插件与 Bandix/WireGuard/Argon 是否真的在镜像里、IPv6 预置、升级保留清单 |
+| `verify.sh` | 离线校验：GPT 布局、grub 串口/failsafe、四大插件与 Bandix/WireGuard/Argon/UPnP 是否真的在镜像里、IPv6 预置、升级保留清单 |
 | `layout-reference.txt` | 分区布局指纹（保证升级能"就地写入"） |
 | `files/` | 预置进镜像的配置：`network`(eth0=WAN/IPv6)、`luci`(Argon)、`system`、`uci-defaults`、`keep.d` |
 | `pkgs/winsrc/local/luci-app-cnc-upgrade/` | 自研"固件在线升级"包（shell 逻辑 + LuCI 页面） |
 | `pkgs/prebuilt/` | 7 个预编译 apk（OpenClash / Argon×3 / Bandix×3），按 sha256 校验 |
 | `tests/run.sh` | 升级逻辑单测（版本比较、sha256/大小校验、降级、坏包拦截、保留/清空配置） |
-| `tests/qemu-smoke.sh` | QEMU+OVMF 冒烟：引导镜像 + 串口进系统跑 79 项断言（见手册 §2.1） |
+| `tests/qemu-smoke.sh` | QEMU+OVMF 冒烟：引导镜像 + 串口进系统跑 91 项断言（见手册 §2.1） |
 | `smoke-evidence/` | 冒烟的原始证据（断言结果 / 系统取证 / 串口日志 / 运行日志 + 说明） |
 | `.github/workflows/build.yml` | CI：测试 → 构建 → 校验 → 发布到"滚动 Release + 按版本 Release" |
 | `secrets/` | 可选凭据（`BAKE_SECRETS=1` 时才用，不入库） |
