@@ -280,10 +280,14 @@ grep -q "mediaurlbase '/luci-static/argon'" "$MNT2/etc/config/luci" 2>/dev/null 
 	&& ok "/etc/config/luci 默认主题 = argon" || bad "/etc/config/luci 未把 argon 设为默认主题"
 grep -q "lang 'zh_cn'" "$MNT2/etc/config/luci" 2>/dev/null \
 	&& ok "LuCI 默认语言 = zh_cn" || bad "LuCI 默认语言不是 zh_cn"
-# LuCI 的每个 app 各有独立语言包：只装 luci-i18n-base-zh-cn 时防火墙等页面仍是英文
-find "$MNT2/usr" -name 'firewall.zh-cn.lmo' 2>/dev/null | grep -q . \
-	&& ok "防火墙页面中文语言包已安装（luci-i18n-firewall-zh-cn）" \
-	|| bad "缺少 luci-i18n-firewall-zh-cn —— 防火墙页面会是英文"
+# LuCI 的每个 app 各有独立语言包：只装 luci-i18n-base-zh-cn 时防火墙等页面仍是英文。
+# 这里逐个 app 断言 .lmo 真的进了镜像 —— 尤其自编的那几个（lucky/msd_lite/vlmcsd），
+# 它们的语言包不来自官方源，最容易被构建脚本漏掉。
+for lmo in base firewall package-manager upnp msd_lite vlmcsd lucky; do
+	find "$MNT2/usr" -name "$lmo.zh-cn.lmo" 2>/dev/null | grep -q . \
+		&& ok "中文语言包：$lmo.zh-cn.lmo" \
+		|| bad "缺少 $lmo.zh-cn.lmo —— 对应页面/菜单会显示英文"
+done
 
 sec "rootfs：网络预置（eth0=WAN 与 IPv6）"
 NET="$MNT2/etc/config/network"
@@ -344,14 +348,16 @@ fi
 [ -x "$MNT2/etc/uci-defaults/99-zz-cnc-defaults" ] && ok "首启收尾脚本可执行（权限正确）" \
 	|| bad "/etc/uci-defaults/99-zz-cnc-defaults 不可执行（Windows/挂载盘上 checkout 常丢可执行位）"
 
-sec "rootfs：内核模块（WireGuard / igc / tun / zram）"
+sec "rootfs：内核模块（WireGuard / igc / tun / tproxy / zram）"
 KDIR="$(ls -d "$MNT2"/lib/modules/*/ 2>/dev/null | head -1)"
 if [ -n "$KDIR" ]; then
 	kv="$(basename "$KDIR")"
 	ok "内核模块目录：$kv"
 	[ "$kv" = "$OPENWRT_KVER" ] && ok "内核版本与 versions.env 一致（$OPENWRT_KVER）" \
 		|| bad "内核版本 $kv 与 versions.env 的 $OPENWRT_KVER 不一致"
-	for m in wireguard igc tun zram; do
+	# nft_tproxy 是 OpenClash UDP 透明代理的硬依赖（它不写在 apk 依赖里，靠 init 脚本 modprobe），
+	# 缺了会出现"只有 TCP 走代理、UDP/QUIC/DNS 直连"这种很难发现的降级。
+	for m in wireguard igc tun nft_tproxy inet_diag zram; do
 		find "$KDIR" -name "${m}.ko*" | grep -q . && ok "kmod: ${m}.ko" || bad "缺少内核模块 ${m}.ko"
 	done
 else
@@ -364,7 +370,10 @@ if [ -f "$MNT2/etc/apk/world" ]; then
 	         luci-app-vlmcsd luci-app-cnc-upgrade bandix luci-app-bandix \
 	         luci-theme-argon luci-app-argon-config \
 	         luci-i18n-bandix-zh-cn luci-i18n-argon-config-zh-cn luci-i18n-base-zh-cn \
-	         luci-i18n-firewall-zh-cn miniupnpd-nftables luci-app-upnp pciutils usbutils nvme-cli iperf3 tcpdump mtr-json luci-proto-wireguard wireguard-tools kmod-wireguard \
+	         luci-i18n-firewall-zh-cn luci-i18n-upnp-zh-cn \
+	         luci-i18n-msd_lite-zh-cn luci-i18n-vlmcsd-zh-cn luci-i18n-lucky-zh-cn \
+	         miniupnpd-nftables luci-app-upnp pciutils usbutils nvme-cli iperf3 tcpdump mtr-json luci-proto-wireguard wireguard-tools kmod-wireguard \
+	         kmod-nft-tproxy kmod-inet-diag \
 	         kmod-igc dnsmasq-full luci-proto-ipv6 odhcpd-ipv6only zram-swap; do
 		grep -qx "$p" "$MNT2/etc/apk/world" && ok "已安装 $p" || bad "清单里没有 $p"
 	done

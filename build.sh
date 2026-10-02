@@ -13,7 +13,7 @@
 #
 # 阶段说明：
 #   preflight 环境与依赖自检        tools    下载并校验 SDK / ImageBuilder
-#   sources   按 commit 拉第三方源   packages 用 SDK 编 7 个包
+#   sources   按 commit 拉第三方源   packages 用 SDK 编 7 个包（+3 个中文语言包）
 #   image     组装镜像               verify   离线校验（GPT/挂载/包清单）
 #   smoke     QEMU 冒烟（可选）
 # =============================================================================
@@ -202,11 +202,33 @@ stage_sources() {
 	[ -f "$SDK/feeds/luci/luci.mk" ] || die "缺少 feeds/luci/luci.mk，LuCI 插件无法编译"
 	cd "$HERE"
 	make -C "$SDK" defconfig >/dev/null 2>&1 || true
+
+	# 语言包 luci-i18n-<app>-<语言> 是 luci.mk 依据 app 源码里的 po/<语言>/ 自动生成的
+	# 子包，与 app 同目录、同一次编译产出。这里显式把它们选进 .config，保证编译 app 时
+	# 一定产出对应 .apk（否则页面是英文 —— 这正是 lucky/msd_lite/vlmcsd 之前的样子）。
+	# 必须在 defconfig 之后做：包目录此时才放进 SDK/package/，配置符号这时才存在。
+	local _src _extra _key
+	while IFS='|' read -r _src _extra; do
+		[ -n "${_extra:-}" ] || continue
+		# 三路写法与下面 ImageBuilder 的 set_ib_config 一致：
+		# 未选中的包在 .config 里是注释行 `# CONFIG_PACKAGE_x is not set`，必须改写它而不是追加，
+		# 否则同一个符号出现两次（Kconfig 取最后一条，但依赖解析会变得难以排查）。
+		_key="CONFIG_PACKAGE_${_extra}"
+		if grep -q "^${_key}=" "$SDK/.config" 2>/dev/null; then
+			sed -i "s|^${_key}=.*|${_key}=y|" "$SDK/.config"
+		elif grep -q "^# ${_key} is not set" "$SDK/.config" 2>/dev/null; then
+			sed -i "s|^# ${_key} is not set|${_key}=y|" "$SDK/.config"
+		else
+			printf '%s=y\n' "$_key" >> "$SDK/.config"
+		fi
+		log "语言包选入 SDK 配置：$_extra"
+	done <<< "$SDK_EXTRA_APKS"
+	make -C "$SDK" oldconfig </dev/null >/dev/null 2>&1 || warn "SDK oldconfig 未跑通（语言包可能没被选中）"
 	ok "feeds 就绪"
 }
 
 stage_packages() {
-	stage "packages：用 SDK 编译 7 个包"
+	stage "packages：用 SDK 编译 7 个包（含 3 个中文语言包）"
 	mkdir -p "$IB/packages"
 	# 清掉上一次运行留下的 apk：否则数量断言会失真，旧的同名包还可能被 apk 当成候选
 	rm -f "$IB/packages"/*.apk "$IB/packages"/packages.adb 2>/dev/null || true
@@ -226,6 +248,18 @@ stage_packages() {
 		[ -n "$apk" ] || die "$name 没有产出 .apk"
 		cp -f "$apk" "$IB/packages/"
 		ok "$(basename "$apk")"
+
+		# 同一次编译还会产出这个 app 的语言包（见 versions.env 的 SDK_EXTRA_APKS）。
+		# ★漏掉它 = LuCI 页面全是英文★，所以这里找不到就直接构建失败，不静默放过。
+		local _src _extra _eapk
+		while IFS='|' read -r _src _extra; do
+			[ -n "${_extra:-}" ] || continue
+			[ "$_src" = "$name" ] || continue
+			_eapk="$(find "$SDK/bin/packages" -name "$_extra-*.apk" | head -1)"
+			[ -n "$_eapk" ] || die "$name 的语言包 $_extra 没有产出 .apk（po/ 目录或 luci.mk 有变？）"
+			cp -f "$_eapk" "$IB/packages/"
+			ok "  └ $(basename "$_eapk")"
+		done <<< "$SDK_EXTRA_APKS"
 	done <<< "$SDK_PACKAGES"
 
 	stage "packages：下载并校验 7 个预编译 apk"
@@ -245,9 +279,15 @@ stage_packages() {
 		[ "$dest" = "$file" ] || ok "  规范文件名 → $dest"
 	done <<< "$PREBUILT_APKS"
 
-	local n; n="$(find "$IB/packages" -maxdepth 1 -name '*.apk' | wc -l)"
-	[ "$n" -eq 14 ] || die "ImageBuilder packages/ 里应有 14 个 apk，实际 $n 个（7 自编 + 7 预编译）"
-	ok "14 个 apk 全部就绪"
+	# 期望数量直接从清单推导，避免以后加包时忘了同步这里的魔数
+	local want n
+	want=$(( $(printf '%s\n' "$SDK_PACKAGES"  | grep -c '|' || true) \
+	      + $(printf '%s\n' "$SDK_EXTRA_APKS" | grep -c '|' || true) \
+	      + $(printf '%s\n' "$PREBUILT_APKS"  | grep -c '|' || true) ))
+	n="$(find "$IB/packages" -maxdepth 1 -name '*.apk' | wc -l)"
+	[ "$n" -eq "$want" ] \
+		|| die "ImageBuilder packages/ 里应有 $want 个 apk，实际 $n 个（$(printf '%s\n' "$SDK_PACKAGES" | grep -c '|' || true) 自编 + $(printf '%s\n' "$SDK_EXTRA_APKS" | grep -c '|' || true) 语言包 + $(printf '%s\n' "$PREBUILT_APKS" | grep -c '|' || true) 预编译）"
+	ok "$want 个 apk 全部就绪"
 }
 
 stage_image() {

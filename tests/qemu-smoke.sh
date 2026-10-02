@@ -251,6 +251,12 @@ x|argon_css_files|find /www/luci-static/argon -name "*.css" 2>/dev/null | grep -
 x|openclash_init|test -x /etc/init.d/openclash
 c|openclash_dir|test -d /usr/share/openclash
 x|openclash_luci_files|find /www/luci-static/resources -name "*openclash*" 2>/dev/null | grep -q .
+# OpenClash 的 UDP 透明代理要 nft_tproxy，但它不在 apk 依赖里（init 脚本自己 modprobe）。
+# 缺了不会报错退出，只会"静默降级成 UDP 不走代理"，所以必须在这里盯住。
+# openclash_tproxy_loads 真的去 modprobe 一次：能挡住 kmod 与内核版本不匹配这种坑。
+x|openclash_tproxy_ko|find /lib/modules -name "nft_tproxy.ko*" | grep -q .
+x|openclash_tproxy_loads|modprobe nft_tproxy 2>/dev/null; lsmod | grep -q "^nft_tproxy"
+x|openclash_inet_diag_ko|find /lib/modules -name "inet_diag.ko*" | grep -q .
 x|lucky_init|test -x /etc/init.d/lucky
 c|lucky_bin|test -x /usr/bin/lucky
 x|msd_lite_init|test -x /etc/init.d/msd_lite
@@ -275,8 +281,15 @@ x|tool_nvme|command -v nvme
 x|tool_iperf3|command -v iperf3
 x|tool_tcpdump|command -v tcpdump
 x|tool_mtr|command -v mtr
-# --- 中文语言包：LuCI 每个 app 有独立语言包，防火墙页最常被漏 ---
+# --- 中文语言包：LuCI 每个 app 有独立 .lmo，只装 base 时其它页面仍是英文。
+#     逐个 app 断言，尤其自编的 msd_lite/vlmcsd/lucky（它们的语言包不来自官方源，
+#     最容易被构建脚本丢掉，见 §7.5 / §9）。---
+x|i18n_base_zh_cn|find /usr -name "base.zh-cn.lmo" 2>/dev/null | grep -q .
 x|i18n_firewall_zh_cn|find /usr -name "firewall.zh-cn.lmo" 2>/dev/null | grep -q .
+x|i18n_upnp_zh_cn|find /usr -name "upnp.zh-cn.lmo" 2>/dev/null | grep -q .
+x|i18n_msd_lite_zh_cn|find /usr -name "msd_lite.zh-cn.lmo" 2>/dev/null | grep -q .
+x|i18n_vlmcsd_zh_cn|find /usr -name "vlmcsd.zh-cn.lmo" 2>/dev/null | grep -q .
+x|i18n_lucky_zh_cn|find /usr -name "lucky.zh-cn.lmo" 2>/dev/null | grep -q .
 # --- WireGuard ---
 x|wg_bin|command -v wg
 x|kmod_wireguard_ko|find /lib/modules -name "wireguard.ko*" | grep -q .
