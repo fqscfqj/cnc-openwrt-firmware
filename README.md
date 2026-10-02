@@ -48,7 +48,7 @@ FIRMWARE_BUILD=r2
 | `pkgs/winsrc/local/luci-app-cnc-upgrade/` | 自研"固件在线升级"包（shell 逻辑 + LuCI 页面） |
 | `pkgs/prebuilt/` | 7 个预编译 apk（OpenClash / Argon×3 / Bandix×3），按 sha256 校验 |
 | `tests/run.sh` | 升级逻辑单测（版本比较、sha256/大小校验、降级、坏包拦截、保留/清空配置） |
-| `tests/qemu-smoke.sh` | QEMU+OVMF 冒烟：引导镜像 + 串口进系统跑 99 项断言（见手册 §2.1） |
+| `tests/qemu-smoke.sh` | QEMU+OVMF 冒烟：引导镜像 + 串口进系统跑 109 项断言（见手册 §2.1） |
 | `smoke-evidence/` | 冒烟的原始证据（断言结果 / 系统取证 / 串口日志 / 运行日志 + 说明） |
 | `.github/workflows/build.yml` | CI：测试 → 构建 → 校验 → 发布到"滚动 Release + 按版本 Release" |
 | `secrets/` | 可选凭据（`BAKE_SECRETS=1` 时才用，不入库） |

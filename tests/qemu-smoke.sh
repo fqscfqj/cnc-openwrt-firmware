@@ -274,6 +274,24 @@ x|miniupnpd_bin|find /usr/sbin /usr/bin -name "miniupnpd" 2>/dev/null | grep -q 
 x|miniupnpd_pkg|apk list --installed 2>/dev/null | grep -q "^miniupnpd-nftables"
 x|miniupnpd_nft_variant|! apk list --installed 2>/dev/null | grep -q "^miniupnpd-iptables"
 x|upnp_luci_files|find /www/luci-static/resources -name "*upnp*" 2>/dev/null | grep -q .
+# --- IPTV：eth1 专用口 + msd_lite 组播转单播（见手册 §7.7）---
+# 接口本身（device/ipv6/defaultroute）在上面 iptv_* 三条里已经断言过；
+# 这里盯的是"首启脚本 99-zz-cnc-defaults 到底有没有把防火墙与 msd_lite 做出来"：
+# 离线校验只能看到镜像里的文件，看不到"进系统跑完 uci-defaults 之后的配置"。
+x|iptv_fw_zone|uci -q show firewall | grep -q "\.name='iptv'"
+x|iptv_fw_zone_network|uci -q show firewall | grep -A5 "\.name='iptv'" | grep -q "network='iptv'"
+# 组播是进到本机（input 方向）的：zone 必须保持 REJECT，另外靠两条精确规则放行。
+x|iptv_fw_zone_input_reject|uci -q show firewall | grep -A5 "\.name='iptv'" | grep -q "input='REJECT'"
+x|iptv_fw_rule_igmp|uci -q show firewall | grep -q "\.name='Allow-IGMP-IPTV'"
+x|iptv_fw_rule_multicast|uci -q show firewall | grep -q "\.name='Allow-IPTV-Multicast'"
+x|msd_lite_enabled|uci -q get msd_lite.@instance[0].enabled | grep -qx 1
+x|msd_lite_bind_4022|uci -q get msd_lite.@instance[0].address | grep -q 4022
+x|msd_lite_rcv_iface|uci -q get msd_lite.@instance[0].network | grep -qx iptv
+# QEMU 里 eth1 没有对端、拿不到地址，但 netifd 仍会给出 device，所以服务应当起得来。
+# ★这里用 pidof 而不用 `pgrep -f "msd_lite -c"`★：冒烟是通过 `sh -c "<命令文本>"` 执行的，
+#   -f 会匹配到执行这条断言的 shell 自己，于是服务根本没起来也会"通过"（实测：返回两个 PID）。
+x|msd_lite_running|pidof msd_lite >/dev/null
+x|msd_lite_listens_4022|netstat -ln 2>/dev/null | grep -q ":4022"
 # --- x86 排障工具（2026-10 补装）---
 x|tool_lspci|command -v lspci
 x|tool_lsusb|command -v lsusb

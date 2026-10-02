@@ -313,6 +313,13 @@ if [ -f "$NET" ]; then
 		&& ok "lan.ipaddr = 192.168.2.1" || bad "lan.ipaddr 不是 192.168.2.1"
 	[ "$(uci_get "$NET" interface iptv device)" = "eth1" ] && [ "$(uci_get "$NET" interface iptv ipv6)" = "0" ] \
 		&& ok "IPTV = eth1 且有意关闭 IPv6（IPv4 组播）" || bad "iptv 段不符合预期（eth1 / ipv6 0）"
+	# IPTV 的防火墙 zone/规则是**首启脚本**建的（镜像里的 /etc/config/firewall 还没有），
+	# 所以离线这里只能盯住"脚本里确实有这段逻辑"；真正"生效了"由 QEMU 冒烟（§2.1）在系统里验。
+	# 少了它，干净刷机后组播会被 iptv zone 的 input REJECT 挡掉，症状是 msd_lite 返回 HTTP 503、
+	# 一个字节都收不到（见手册 §7.7）。
+	grep -q 'Allow-IPTV-Multicast' "$MNT2/etc/uci-defaults/99-zz-cnc-defaults" 2>/dev/null \
+		&& ok "首启脚本含 IPTV 放行规则（IGMP + 组播 UDP，见 §7.7）" \
+		|| bad "首启脚本缺少 IPTV 放行规则 —— 干净刷机后 IPTV 收不到组播（msd_lite 会返回 503）"
 	grep -q "list ports 'eth2'" "$NET" && grep -q "list ports 'eth3'" "$NET" \
 		&& ok "br-lan = eth2 + eth3" || bad "br-lan 端口不是 eth2+eth3"
 	[ "$(uci_get "$NET" globals globals packet_steering)" = "1" ] \

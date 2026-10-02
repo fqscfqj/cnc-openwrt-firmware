@@ -37,6 +37,79 @@ else
 	logger -t cnc-defaults "找不到名为 wan 的 firewall zone，跳过 wan6/wan_6 登记"
 fi
 
+# ------------------------------------------------------------------ IPTV（eth1）
+# eth1 是专用 IPTV 口（见 files/etc/config/network）。运营商 IPTV 是**组播**，
+# 而配套的 m3u 播放列表里地址形如 http://192.168.2.1:4022/udp/239.253.232.77:8000
+# —— 即由路由器上的 msd_lite 收下组播、再转成单播 HTTP 发给局域网客户端。
+# 因此有两件事必须做对：
+#
+# ★1. 放行入站组播。组播流是**进到路由器本机**的（nft 的 input 方向），
+#     不是转发。而 iptv zone 出于安全是 input REJECT，会把它整条挡掉 ——
+#     症状是 msd_lite 返回 HTTP 503、一个字节都收不到，且 nft 里
+#     reject_from_iptv 的计数一路增长（本机实测：加规则前是 503 / 0 字节，
+#     加上之后同一路频道变成 200，约 8.9 Mbps）。
+#     这里**不**把整个 zone 放开，只加 IGMP 与组播 UDP 两条精确规则。
+# ★2. 这套配置原先只存在于旧系统手工配置的 /etc/config/firewall 里
+#     （它是 conffile，升级时被带了过来），**镜像本身没有** ⇒ 干净刷机
+#     （sysupgrade -n / 首次刷写）之后 IPTV 会失效。所以在这里补齐。
+#
+# 注意：组播规则放行的是 224.0.0.0/4（全部 IPv4 组播）。这样做是为了兼容
+# 各省/各运营商不同的组播段；实际风险很低 —— 内核只会把组播交给**已加入**
+# 该组的 socket，没加入的直接丢弃。想收得更紧就改成具体网段，例如本例
+# m3u 里 112 个频道全在 239.253.232.0/24。
+
+iptvzone=""
+zi=0
+while [ "$zi" -lt 32 ]; do
+	[ -n "$(uci -q get "firewall.@zone[$zi]" 2>/dev/null)" ] || break
+	if [ "$(uci -q get "firewall.@zone[$zi].name")" = "iptv" ]; then
+		iptvzone="firewall.@zone[$zi]"
+		break
+	fi
+	zi=$((zi + 1))
+done
+if [ -z "$iptvzone" ]; then
+	uci add firewall zone >/dev/null
+	iptvzone="firewall.@zone[-1]"
+	uci set "$iptvzone".name='iptv'
+	uci set "$iptvzone".input='REJECT'
+	uci set "$iptvzone".output='ACCEPT'
+	uci set "$iptvzone".forward='REJECT'
+	logger -t cnc-defaults "已新建 iptv firewall zone（input REJECT，只放 IGMP 与组播）"
+fi
+# forward 保持 REJECT：组播由路由器本机的 msd_lite 转成单播，不需要 IPTV→LAN 转发。
+# 不设 masq：IPTV 网段不做 NAT，避免它的地址/路由混进主网络。
+uci -q get "$iptvzone.network" | grep -qw iptv || uci add_list "$iptvzone.network=iptv"
+
+# 两条放行规则，按 name 查重（幂等：重复执行不会加出第二条）
+add_iptv_rule() { # <name> <proto> [dest_ip]
+	uci -q show firewall | grep -q "\.name='$1'" && return 0
+	uci add firewall rule >/dev/null
+	uci set firewall.@rule[-1].name="$1"
+	uci set firewall.@rule[-1].src='iptv'
+	uci set firewall.@rule[-1].proto="$2"
+	[ -n "${3:-}" ] && uci set firewall.@rule[-1].dest_ip="$3"
+	uci set firewall.@rule[-1].family='ipv4'
+	uci set firewall.@rule[-1].target='ACCEPT'
+	logger -t cnc-defaults "已新增 IPTV 防火墙规则 $1"
+}
+# IGMP 必须放行：路由器要往 IPTV 网络发成员报告；上游查询报文被挡掉的话，
+# 交换机会在几分钟后把这个组剪掉，表现为"看一会儿就断"。
+add_iptv_rule 'Allow-IGMP-IPTV' 'igmp'
+add_iptv_rule 'Allow-IPTV-Multicast' 'udp' '224.0.0.0/4'
+
+# msd_lite：把 IPTV 口的组播转成单播 HTTP。端口 4022 与 udpxy 默认端口一致，
+# 常见公共 m3u 模板（形如 http://<路由器>:4022/udp/<组播组>:<端口>）直接可用。
+# 它只监听局域网侧：iptv zone 是 input REJECT、wan zone 也是 REJECT，都到不了它。
+if [ -f /etc/config/msd_lite ]; then
+	uci -q get msd_lite.@instance[0] >/dev/null 2>&1 || uci add msd_lite instance >/dev/null
+	uci set msd_lite.@instance[0].enabled='1'
+	uci set msd_lite.@instance[0].address='0.0.0.0:4022'
+	uci set msd_lite.@instance[0].network='iptv'
+	uci commit msd_lite
+	logger -t cnc-defaults "msd_lite 已配置：0.0.0.0:4022，组播收在 iptv 口"
+fi
+
 # ------------------------------------------------------------------ DNS 上游
 # 给 dnsmasq 一组稳定的国内上游；wan 设了 peerdns=1，ISP 下发的 DNS 仍会一并使用。
 if uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
