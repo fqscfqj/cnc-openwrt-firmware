@@ -240,26 +240,41 @@ stage_sources() {
 # 也就是说 build.sh 统一传的 PKG_HASH=skip 对它完全无效 —— 不回头校验的话，
 # 它就是这个工程里唯一没有完整性保证的运行载荷。编完后在 SDK 里找出那份 tar.gz 验一次。
 verify_lucky_payload() {
-	local mk="$SDK/gdy666/luci-app-lucky/lucky/Makefile"
-	local ver; ver="$(sed -n 's/^PKG_VERSION:=//p' "$mk" 2>/dev/null | head -1)"
-	[ -n "$ver" ] || die "读不到 lucky 的 PKG_VERSION（$mk 不在？）"
+	# ★ 路径取自 stage_sources：`cp -a pkgs/winsrc/<path> $SDK/package/<name>`，
+	#   所以 SDK 里两份副本分别是 package/lucky 与 package/luci-app-lucky，
+	#   要读的是**被编译的那一份**（package/lucky/Makefile），不是 clone 目录。
+	local mk="$SDK/package/lucky/Makefile"
+	[ -f "$mk" ] || die "找不到 lucky 的 Makefile：$mk（源码树布局变了？见 stage_sources）"
+	# ★ 注意别写成 `ver="$(sed … | head -1 || true)"` 就完事：本脚本是 set -euo pipefail，
+	#   sed 读不到文件会返回 2，pipefail 会把它传成整条管道的状态，于是 set -e
+	#   当场终止脚本 —— 而 `2>/dev/null` 又把 sed 的原因吞掉了，结果就是
+	#   **零输出、退出码 2 的静默失败**（2026-10-03 CI run #13 就是这么挂的）。
+	#   所以：先 [ -f ] 判存在、再给管道兜 `|| true`。
+	local ver; ver="$(sed -n 's/^PKG_VERSION:=//p' "$mk" | head -1 || true)"
+	[ -n "$ver" ] || die "读不出 $mk 里的 PKG_VERSION"
 	[ "$ver" = "$LUCKY_VERSION" ] \
 		|| die "lucky 版本不一致：源码树 PKG_VERSION=$ver，versions.env 的 LUCKY_VERSION=$LUCKY_VERSION（换 LUCKY_COMMIT 时三项要一起改）"
-	# 定位上游 Build/Prepare 下载的那份 tar.gz。分两级找，避免因为 SDK 目录布局
-	# 的细节（build_dir 下的 target-* 名字、架构后缀）把构建搞挂：
-	#   ① 按上游写死的文件名精确找；② 退一步按"lucky-<版本> 目录下的 lucky_*_Linux_*.tar.gz"找。
-	local tar=""
-	tar="$(find "$SDK/build_dir" -name "lucky_${LUCKY_VERSION}_Linux_x86_64.tar.gz" 2>/dev/null | head -1)"
-	[ -n "$tar" ] || tar="$(find "$SDK/build_dir" -path "*lucky-${LUCKY_VERSION}*" \
-		-name "lucky_${LUCKY_VERSION}_Linux_*.tar.gz" 2>/dev/null | head -1)"
-	[ -n "$tar" ] || {
-		warn "在 $SDK/build_dir 下没找到 lucky 的运行包，实际找到的 lucky_* 文件："
-		find "$SDK/build_dir" -name 'lucky_*' 2>/dev/null | sed 's/^/      /' >&2
+	# 定位上游 Build/Prepare 下载的那份 tar.gz。依次放宽条件，避免因为 SDK 目录布局
+	# 的细节（build_dir 下的 target-* 名字、架构后缀、PKG_BUILD_DIR 位置）把构建搞挂：
+	#   ① build_dir 下按上游写死的文件名精确找
+	#   ② build_dir 下按"lucky-<版本> 目录里的 lucky_<版本>_Linux_*.tar.gz"找
+	#   ③ 整个 SDK 里再兜一遍
+	local tar="" where
+	for where in "$SDK/build_dir" "$SDK"; do
+		tar="$(find "$where" -name "lucky_${LUCKY_VERSION}_Linux_x86_64.tar.gz" 2>/dev/null | head -1 || true)"
+		if [ -n "$tar" ]; then break; fi
+		tar="$(find "$where" -path "*lucky-${LUCKY_VERSION}*" \
+			-name "lucky_${LUCKY_VERSION}_Linux_*.tar.gz" 2>/dev/null | head -1 || true)"
+		if [ -n "$tar" ]; then break; fi
+	done
+	if [ -z "$tar" ]; then
+		warn "在 SDK 里没找到 lucky 的运行包，实际找到的 lucky_* 文件："
+		find "$SDK" -name 'lucky_*' 2>/dev/null | head -20 | sed 's/^/      /' >&2 || true
 		die "找不到 lucky_${LUCKY_VERSION}_Linux_*.tar.gz —— 无法校验 lucky 的运行载荷（上游 Makefile 改了下载方式？见 versions.env 说明）"
-	}
-	local got; got="$(sha256sum "$tar" | cut -d' ' -f1)"
+	fi
+	local got; got="$(sha256sum "$tar" | cut -d' ' -f1 || true)"
 	[ "$got" = "$LUCKY_TARBALL_SHA256" ] \
-		|| die "lucky 运行包校验和不符：期望 $LUCKY_TARBALL_SHA256，实际 $got（$tar）—— 上游资产变了或被换过，核对后更新 versions.env"
+		|| die "lucky 运行包校验和不符：期望 $LUCKY_TARBALL_SHA256，实际 ${got:-（读不出）}（$tar）—— 上游资产变了或被换过，核对后更新 versions.env"
 	ok "lucky 运行包 sha256 校验通过（$(basename "$tar")）"
 }
 
@@ -280,7 +295,7 @@ stage_packages() {
 		make -C "$SDK" "package/$name/compile" V=s -j"$JOBS" \
 			PKG_HASH=skip PKG_MIRROR_HASH=skip >"$WORK/build-$name.log" 2>&1 \
 			|| { tail -n 40 "$WORK/build-$name.log" >&2; die "编译 $name 失败（完整日志 $WORK/build-$name.log）"; }
-		apk="$(find "$SDK/bin/packages" -name "$name-*.apk" | head -1)"
+		apk="$(find "$SDK/bin/packages" -name "$name-*.apk" | head -1 || true)"
 		[ -n "$apk" ] || die "$name 没有产出 .apk"
 		cp -f "$apk" "$IB/packages/"
 		ok "$(basename "$apk")"
@@ -296,7 +311,7 @@ stage_packages() {
 		while IFS='|' read -r _src _extra; do
 			[ -n "${_extra:-}" ] || continue
 			[ "$_src" = "$name" ] || continue
-			_eapk="$(find "$SDK/bin/packages" -name "$_extra-*.apk" | head -1)"
+			_eapk="$(find "$SDK/bin/packages" -name "$_extra-*.apk" | head -1 || true)"
 			[ -n "$_eapk" ] || die "$name 的语言包 $_extra 没有产出 .apk（po/ 目录或 luci.mk 有变？）"
 			cp -f "$_eapk" "$IB/packages/"
 			ok "  └ $(basename "$_eapk")"
@@ -339,7 +354,9 @@ stage_packages() {
 resolve_image() {
 	if [ -n "${BUILT_IMG:-}" ] && [ -f "$BUILT_IMG" ]; then printf '%s' "$BUILT_IMG"; return 0; fi
 	local imgs n
-	imgs="$(find "$OUT" -maxdepth 1 -name '*.img.gz' 2>/dev/null | sort)"
+	# `|| true`：本脚本是 set -euo pipefail，find 在 $OUT 不存在时返回非 0，
+	# 会被 pipefail 传成整条管道的状态、再由 set -e 静默终止脚本 —— 不要这个坑。
+	imgs="$(find "$OUT" -maxdepth 1 -name '*.img.gz' 2>/dev/null | sort || true)"
 	n="$(printf '%s\n' "$imgs" | grep -c . || true)"
 	case "$n" in
 		1) printf '%s' "$imgs"; return 0 ;;
@@ -464,7 +481,7 @@ PY
 		|| { tail -n 60 "$WORK/image.log" >&2; die "make image 失败（完整日志 $WORK/image.log）"; }
 
 	local tdir="$IB/bin/targets/$OPENWRT_TARGET/$OPENWRT_SUBTARGET"
-	local src; src="$(find "$tdir" -maxdepth 1 -name 'openwrt-*-generic-ext4-combined-efi.img.gz' | head -1)"
+	local src; src="$(find "$tdir" -maxdepth 1 -name 'openwrt-*-generic-ext4-combined-efi.img.gz' | head -1 || true)"
 	[ -n "$src" ] || die "没找到 ext4-combined-efi 镜像，检查 $tdir"
 
 	local outname="openwrt-${OPENWRT_VERSION}-x86-64-${FIRMWARE_NAME}-${FIRMWARE_BUILD}-ext4-combined-efi.img.gz"
@@ -472,7 +489,7 @@ PY
 	cp -f "$src" "$OUT/$outname"
 	BUILT_IMG="$OUT/$outname"   # 后续 verify / smoke / 汇报一律用这一份
 	sha256sum "$OUT/$outname" | sed "s| .*/| |" > "$OUT/$outname.sha256"
-	local man; man="$(find "$tdir" -maxdepth 1 -name 'openwrt-*-generic.manifest' | head -1)"
+	local man; man="$(find "$tdir" -maxdepth 1 -name 'openwrt-*-generic.manifest' | head -1 || true)"
 	[ -n "$man" ] && cp -f "$man" "$OUT/$outname.manifest"
 
 	# ---- latest.json（路由器端比对用）----

@@ -119,6 +119,9 @@ cat "$WORKTMP/layout.txt" | sed 's/^/    /'
 #   写成 `awk ... | { read ...; ok/bad ... }` 的话，{ } 是管道的最后一段、跑在
 #   子 shell 里，ok/bad 对 PASS/FAIL/FAILED 的修改**全部丢失** —— 结果是这 4 条
 #   断言全挂也照样打印"镜像校验全部通过，可以刷机"并 exit 0（2026-10 实测复现）。
+# 先都置空：万一 layout.txt 缺失/解析不出，下面读到的是空值、四条断言会**明确报失败**，
+# 而不是因为 set -u 直接以"unbound variable"崩掉（那样就看不到是哪一条出了问题）。
+ek=; er=; bb=; c=
 read -r ek er bb c < <(awk -v k="$KERNEL_PARTSIZE" -v r="$ROOTFS_PARTSIZE" '
 	$1=="entry1" && $3=="size_mib="k { ek=1 }
 	$1=="entry2" && $3=="size_mib="r { er=1 }
