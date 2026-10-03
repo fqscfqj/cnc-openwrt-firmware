@@ -20,6 +20,10 @@
 # =============================================================================
 set -uo pipefail
 
+# python 输出编码钉成 UTF-8：某些环境（例如中文 Windows）python 的 stdout 默认是 GBK，
+# 而下面几处 heredoc 里的 python 会打中文（含错误信息），那会直接 UnicodeEncodeError 崩掉。
+export PYTHONIOENCODING=utf-8
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=versions.env disable=SC1091
 . "$HERE/versions.env"

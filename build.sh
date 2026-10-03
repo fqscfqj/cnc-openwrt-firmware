@@ -19,6 +19,11 @@
 # =============================================================================
 set -euo pipefail
 
+# python 的输出编码钉成 UTF-8：某些环境（例如中文 Windows）python 的 stdout 默认是
+# GBK，往那里打 ✔ 或中文会直接 UnicodeEncodeError 崩掉 —— 而我们有几处 heredoc 里的
+# python 会打中文（错误信息）。这行是一次性的免疫。
+export PYTHONIOENCODING=utf-8
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------------------------------------------------------------- 参数覆盖
@@ -247,22 +252,22 @@ stage_sources() {
 # PKG_HASH=skip 对它完全无效（上游根本不看 PKG_HASH）⇒ 不额外处理的话，它就是全工程
 # 唯一一个没有任何完整性校验的运行载荷。
 #
-# ★ 为什么只能在 make 内部校验（2026-10-03 两次 CI 失败换来的结论，两条路都堵死）★
+# ★ 为什么只能在 make 内部校验（2026-10-03 三次 CI 失败换来的结论）★
 #   * "编完再去 SDK 里找那份 tar.gz 验一遍" —— 不行：SDK 默认 CONFIG_AUTOREMOVE，
 #     package.mk 在 PKG_BUILD_DIR 里放 .autoremove，随后的 clean-build 把**整个
-#     build_dir 删掉**。实测：编完 lucky 后在整个 $SDK 下连一份 lucky_*.tar.gz 都找不到
-#     （run #14 的日志就是这句 "在 SDK 里没找到 lucky 的运行包"）。
+#     build_dir 删掉**。实测（run #14）：编完 lucky 后整个 $SDK 下连一份
+#     lucky_*.tar.gz 都找不到。
 #   * "先把校验过的 tar.gz 预置进 PKG_BUILD_DIR，让上游那句 [ ! -f ] && wget 跳过" ——
 #     也不行：package.mk 的 $(STAMP_PREPARED) 配方**第一件事就是
 #     `@-rm -rf $(PKG_BUILD_DIR)`**，预置的文件在 Build/Prepare 之前就被删了。
-#   ⇒ 唯一有效的位置：Build/Prepare 里、解包之前。
-#
-# 做法：往 $SDK/package/lucky/Makefile **追加**一个同名 define（make 里
-# `define X … endef` 等价于一次 `X = …` 赋值，后定义的生效；而 package.mk 是在配方
-# **运行时**才展开 $(Build/Prepare) 的，所以追加在文件末尾即可整体接管）。
-# 校验和通过 make 命令行变量 LUCKY_TARBALL_SHA256 传入。
-# 追加之后还有 check_lucky_verified 去编译日志里核对"这段校验真的跑过"，
-# 万一 make 语义或上游结构变了，会**明确失败**而不是静默放过。
+#   * "在 Makefile 末尾追加一个同名 define 覆盖 Build/Prepare" —— **实测不生效**
+#     （run #15：补丁打印了"已植入"，但编译日志里没有校验命令）。OpenWrt 的
+#     package.mk 是在 $(eval) 里展开 $(Build/Prepare) 的，展开时机早于"文件末尾的
+#     重新定义"。
+#   ⇒ 唯一稳的做法：**就地**把校验插进上游那段 Build/Prepare 里（下面的 python3 干这事，
+#     插在 `tar -xzvf …lucky_*.tar.gz` 之前），并且让"校验真的跑过"在
+#     build_dir 下留一个**标记文件**（PKG_BUILD_DIR 会被 AUTOREMOVE 删掉，它的父目录
+#     不会），check_lucky_verified 就凭这个标记判断 —— 不去猜 make 会怎么回显。
 patch_lucky_makefile() {
 	local mk="$SDK/package/lucky/Makefile"
 	[ -f "$mk" ] || die "找不到 lucky 的 Makefile：$mk（源码树布局变了？见 stage_sources）"
@@ -274,40 +279,82 @@ patch_lucky_makefile() {
 	[ -n "$ver" ] || die "读不出 $mk 里的 PKG_VERSION"
 	[ "$ver" = "$LUCKY_VERSION" ] \
 		|| die "lucky 版本不一致：源码树 PKG_VERSION=$ver，versions.env 的 LUCKY_VERSION=$LUCKY_VERSION（换 LUCKY_COMMIT 时要连 LUCKY_VERSION / LUCKY_TARBALL_SHA256 一起改）"
-	if grep -q 'CNC_LUCKY_PREPARE_PATCH' "$mk"; then
-		ok "lucky 的载荷校验补丁已存在（幂等，跳过）"
-		return 0
-	fi
-	grep -q 'define Build/Prepare' "$mk" \
-		|| die "$mk 里找不到 define Build/Prepare，无法植入校验（上游改了结构？见 build.sh 的 patch_lucky_makefile）"
-	cat >> "$mk" <<'MAKEEOF'
+	# ★ `|| rc=$?` 必须跟 python3 在同一行：写成 `… <<'PY' \` + 换行 + `|| rc=$?` 的话，
+	#   续行会把它变成 heredoc 的**第一行内容**（喂给 python 当代码），于是 python 报
+	#   SyntaxError、而那句判断根本没接上。（本地测试抓到的）
+	# ★ python 侧一律用**退出码**通信、只往 stdout/stderr 写 ASCII：
+	#   某些环境（例如中文 Windows）python 的 stdout 是 GBK，往那里打 ✔ 或中文会直接
+	#   UnicodeEncodeError 崩掉，进而把构建搞挂。
+	local rc=0
+	MK="$mk" SHA="$LUCKY_TARBALL_SHA256" python3 - <<'PY' || rc=$?
+import os, re, sys
 
-# ---- CNC_LUCKY_PREPARE_PATCH：由本工程追加（build.sh）-------------------------
-# 整体接管 Build/Prepare（make 里后定义的同名变量生效），唯一目的：在**解包之前**
-# 校验这份预编译运行包的 sha256 —— 它会被装成 /usr/bin/lucky 以 root 运行，而上游是
-# PKG_HASH:=skip + 自己 wget，等于没有任何完整性保证。校验和由 build.sh 通过命令行
-# 变量传入（见 versions.env 的 LUCKY_TARBALL_SHA256）。
-define Build/Prepare
-	[ -f $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz ] || wget -O $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz https://github.com/gdy666/lucky/releases/download/v$(PKG_VERSION)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz
-	echo "$(LUCKY_TARBALL_SHA256)  $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz" | sha256sum -c - || { echo "ERROR: lucky 运行包 sha256 校验和不符（期望 $(LUCKY_TARBALL_SHA256)）—— 上游换了资产或被换包，核对后更新 versions.env 的 LUCKY_TARBALL_SHA256"; rm -f $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz; false; }
-	tar -xzvf $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz -C $(PKG_BUILD_DIR)
-endef
-MAKEEOF
-	grep -q 'CNC_LUCKY_PREPARE_PATCH' "$mk" || die "追加 lucky 载荷校验补丁失败"
-	ok "已给 lucky 的 Build/Prepare 植入载荷校验（sha256=${LUCKY_TARBALL_SHA256:0:16}…）"
+p, sha = os.environ['MK'], os.environ['SHA']
+s = open(p, encoding='utf-8').read()
+
+if 'CNC_LUCKY_PREPARE_PATCH' in s:
+    sys.exit(10)              # 10 = 已经打过补丁（幂等）
+
+
+# 上游 Build/Prepare 里那一行：`<TAB>tar -xzvf <路径>.tar.gz -C …`
+# ★ 注意别按文件名里的 "lucky_" 去找：Makefile 里那一段是变量表达式
+#   `$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz`，**没有**字面的 lucky_
+#   （踩过一次）。这个文件里只有一条 `tar -xzvf … .tar.gz`，按结构匹配即可。
+m = re.search(r'^([ \t]*)tar -xzvf (\S+\.tar\.gz) -C ', s, re.M)
+if not m:
+    # 只用 ASCII：见上面关于 PYTHONIOENCODING 的说明（这条路径可能在任何环境下触发）
+    sys.stderr.write('ERROR: cannot find upstream Build/Prepare line '
+                     '"tar -xzvf ...tar.gz -C " in %s\n' % p)
+    sys.exit(3)
+
+ind, tar = m.group(1), m.group(2)
+ins = (
+    ind + 'echo "' + sha + '  ' + tar + '" | sha256sum -c - || '
+    '{ echo "ERROR: lucky 运行包 sha256 校验和不符（期望 ' + sha + '）—— 上游换了资产或被换包，'
+    '核对后更新 versions.env 的 LUCKY_TARBALL_SHA256"; rm -f ' + tar + '; false; }'
+    '   # CNC_LUCKY_PREPARE_PATCH\n'
+    # 标记文件写在 $(BUILD_DIR)（= build_dir/target-*）下：PKG_BUILD_DIR 会被
+    # CONFIG_AUTOREMOVE 删掉，它的父目录不会，所以标记能留到 check_lucky_verified。
+    + ind + 'echo "' + sha + '" > "$(BUILD_DIR)/.cnc-lucky-verified"'
+    '   # CNC_LUCKY_PREPARE_PATCH\n'
+)
+open(p, 'w', encoding='utf-8', newline='\n').write(s[:m.start()] + ins + s[m.start():])
+PY
+	case "$rc" in
+		0)  ok "已就地给 lucky 的 Build/Prepare 植入载荷校验（sha256=${LUCKY_TARBALL_SHA256:0:16}…）" ;;
+		10) ok "lucky 的载荷校验补丁已存在（幂等，跳过）" ;;
+		*)  die "给 lucky 的 Makefile 植入载荷校验失败（rc=$rc；上游改了结构？见 build.sh 的 patch_lucky_makefile）" ;;
+	esac
+	# 自检：确认补丁真写进去了（避免"python 说成功了但文件没变"这种）
+	grep -q 'CNC_LUCKY_PREPARE_PATCH' "$mk" \
+		|| die "植入校验后没在 $mk 里找到补丁标记"
 }
 
-# 编译完 lucky 后，从编译日志（V=s 会回显每条配方命令、变量已展开）确认那段校验
-# **真的执行过**。这是最后一道保险：万一 make 的 define 覆盖语义与预期不符，
-# 补丁没生效会在这里被抓住，而不是让一个没校验过的 root 二进制进镜像。
-check_lucky_verified() {
+# 失败时把编译日志里与下载/校验有关的行打出来 —— 免得又是一次"看不见原因"的失败
+dump_lucky_log() {
 	local log="$WORK/build-lucky.log"
-	[ -s "$log" ] || die "找不到 lucky 的编译日志：$log"
-	grep -q 'sha256sum -c -' "$log" \
-		|| die "lucky 编译日志里没有出现载荷校验命令 —— Build/Prepare 补丁没生效（make 语义变了？），拒绝继续（$log）"
-	grep -q "$LUCKY_TARBALL_SHA256" "$log" \
-		|| die "lucky 编译日志里没有出现预期的校验和 $LUCKY_TARBALL_SHA256 —— 补丁可能没生效，拒绝继续（$log）"
-	ok "lucky 载荷校验确认已执行（编译日志里有对应命令）"
+	[ -s "$log" ] || { warn "lucky 的编译日志不存在：$log"; return 0; }
+	warn "lucky 编译日志（$log，共 $(wc -l < "$log") 行）里的关键行："
+	grep -n -E 'wget|tar -xz|sha256sum|CNC_LUCKY|Build/Prepare|lucky_2' "$log" 2>/dev/null \
+		| head -20 | cut -c1-300 | sed 's/^/      /' >&2 || true
+}
+
+# 编译完 lucky 后，确认那段校验**真的执行过**：补丁会在 $(BUILD_DIR) 下留一个
+# .cnc-lucky-verified，内容是它校验过的 sha256 —— 只有跑过校验的配方才写得出这个文件。
+# 这比"去编译日志里 grep make 回显"可靠（回显格式受 V= 影响），也是补丁是否生效的铁证。
+check_lucky_verified() {
+	local marker
+	marker="$(find "$SDK/build_dir" -maxdepth 3 -name '.cnc-lucky-verified' 2>/dev/null | head -1 || true)"
+	if [ -z "$marker" ]; then
+		dump_lucky_log
+		die "没找到载荷校验标记（$SDK/build_dir/*/.cnc-lucky-verified）—— 那段校验没执行，拒绝继续（见上方的编译日志片段）"
+	fi
+	local got; got="$(cat "$marker" 2>/dev/null || true)"
+	if [ "$got" != "$LUCKY_TARBALL_SHA256" ]; then
+		dump_lucky_log
+		die "载荷校验标记里的校验和是 '$got'，与 versions.env 的 LUCKY_TARBALL_SHA256 不符（$marker）"
+	fi
+	ok "lucky 载荷校验确认已执行（sha256=${LUCKY_TARBALL_SHA256:0:16}…）"
 }
 
 stage_packages() {
