@@ -358,6 +358,14 @@ grep -q '^/etc/config/lucky.daji$' "$MNT2/lib/upgrade/keep.d/99-cnc-plugins" 2>/
 	&& ok "keep.d 登记了 /etc/config/lucky.daji（Lucky 配置）" \
 	|| bad "keep.d 缺少 /etc/config/lucky.daji —— 升级后 Lucky 配置会丢"
 [ -f "$MNT2/etc/sysupgrade.conf" ] && ok "存在 /etc/sysupgrade.conf" || bad "缺少 /etc/sysupgrade.conf"
+# 哨兵：升级路径上的"配置迁移"。
+# /etc/config/* 在升级时会被设备上的旧文件覆盖（sysupgrade -l 里就有 /etc/config/system），
+# 所以"改 files/etc/config/* 让老设备也生效"是**不成立**的：r2 把 log_size 提到 512，
+# 全新安装是 512、升级后真机却仍是 128（2026-10-03 实测，见手册 §8.3）。
+# 老设备只能靠首启脚本里的幂等迁移，这条断言盯住那段迁移还在。
+grep -q 'cnc-migrate:system-log-size' "$MNT2/etc/uci-defaults/99-zz-cnc-defaults" 2>/dev/null \
+	&& ok "首启脚本含 log_size 升级迁移（老设备也能吃到 512，见手册 §8.3）" \
+	|| bad "首启脚本缺少 log_size 迁移 —— 升级后的设备会一直停在 128（config 被保留，镜像里的值进不去）"
 # 下面四条是"别把守卫删了"的哨兵。它们守的是升级链路上几个**静默**失效点：
 #   * 备份超过引导分区 → 上游 platform_copy_config 不检查 cp 失败 → 配置静默丢失
 #   * 分区布局变了     → sysupgrade 整盘覆写，但 --test 仍返回 0 → 只看返回码挡不住

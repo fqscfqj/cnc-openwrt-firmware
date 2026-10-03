@@ -18,7 +18,7 @@
 # 构建机（x86_64 Debian/Ubuntu）：见 03-固件构建与升级.md §1 装依赖
 cd fn
 bash build.sh            # 出图 + 离线校验，产物在 out/
-bash tests/run.sh        # 升级逻辑单元测试（41 项，不需要硬件）
+bash tests/run.sh        # 升级逻辑单元测试（47 项，不需要硬件）
 ```
 
 ## 升级到新版本

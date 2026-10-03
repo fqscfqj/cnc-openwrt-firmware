@@ -8,7 +8,8 @@
 #       然后覆盖这些场景：
 #         正常升级 / 同名重发 / 降级 / 远端不可达 / latest.json 不合法 /
 #         sha256 不符 / 大小不符 / sysupgrade --test 失败 / 保留配置与清空配置 /
-#         分区布局变化拦截 / 备份体积超预算拦截 / file 字段目录穿越拦截 / 并发锁
+#         分区布局变化拦截 / 备份体积超预算拦截 / file 字段目录穿越拦截 / 并发锁 /
+#         首启脚本的 log_size 升级迁移（3 个分支 + 段缺失时计失败）
 # =============================================================================
 set -uo pipefail
 
@@ -331,6 +332,60 @@ check "clean 清空暂存目录" ok clean
 CNC_STAGE_DIR=/ sh "$SCRIPT" clean >/dev/null 2>&1 \
 	&& assert_bad "clean 竟然接受了 STAGE=/" \
 	|| assert_ok "clean 拒绝对 / 执行"
+
+echo "-- 首启脚本：log_size 升级迁移（手册 §8.3）--"
+# 为什么单独测这段：/etc/config/system 在升级时会被设备上的旧文件覆盖
+# （真机 sysupgrade -l 里就有它），所以"只改 files/etc/config/*"对老设备无效 ——
+# r2 的 log_size=512 就是这么失效的（镜像里 512、升级后真机仍 128）。
+# 现在靠首启脚本里那段幂等迁移兜住。这里把那段代码**原样抽出来**跑三个分支，
+# 因为 QEMU 冒烟跑的是全新安装，永远看不到这条路径。
+MIG_SRC="$HERE/../files/etc/uci-defaults/99-zz-cnc-defaults"
+if [ -f "$MIG_SRC" ]; then
+	awk '/cnc-migrate:system-log-size/{f=1} f{print} f&&/^fi$/{exit}' "$MIG_SRC" > "$SB/migrate.sh" 2>/dev/null
+	[ -s "$SB/migrate.sh" ] && assert_ok "首启脚本里有 log_size 迁移段（哨兵标记 cnc-migrate:system-log-size 还在）" \
+		|| assert_bad "抽不出 log_size 迁移段 —— 标记被删或段落被改写（verify.sh 的哨兵也盯着它）"
+else
+	assert_bad "找不到首启脚本 $MIG_SRC"
+fi
+
+# 在子 shell 里跑抽出来的那段：uci 换成带状态的最小桩，返回 "<结果值>|<fail 次数>"
+mig_run() { # <当前 log_size> [section 是否存在=1]
+	local cur="$1" sect="${2:-1}"
+	(
+		MIG_VAL="$cur"; MIG_SECTION="$sect"; FAILED_N=0
+		fail() { FAILED_N=$((FAILED_N + 1)); }
+		logger() { :; }
+		uci() {
+			[ "${1:-}" = "-q" ] && shift
+			case "${1:-}|${2:-}" in
+				"get|system.@system[0]")
+					[ "$MIG_SECTION" = "1" ] && { echo system; return 0; } || return 1 ;;
+				"get|system.@system[0].log_size")
+					echo "$MIG_VAL"; return 0 ;;
+				"set|system.@system[0].log_size="*)
+					# ★ 用 ${2#*=} 而不是 ${2#system.@system[0].log_size=}：
+					#   后者里的 [0] 在 glob 里是**字符类**，永远匹配不上带方括号的字面量，
+					#   前缀剥不掉 → 桩返回 "system.@system[0].log_size=512"，测试会假红。
+					MIG_VAL="${2#*=}"; return 0 ;;
+				"commit|"*) return 0 ;;
+				*) return 1 ;;
+			esac
+		}
+		. "$SB/migrate.sh"
+		printf '%s|%s\n' "$MIG_VAL" "$FAILED_N"
+	)
+}
+mig_expect() { # <描述> <当前值> <期望值> <期望fail数> [section]
+	local desc="$1" cur="$2" want="$3" wantfail="$4" got
+	got="$(mig_run "$cur" "${5:-1}")"
+	[ "$got" = "$want|$wantfail" ] && assert_ok "$desc（$cur → $got）" \
+		|| assert_bad "$desc：期望 $want|$wantfail，实际 $got"
+}
+mig_expect "旧值 128（上游默认）→ 迁移到 512" 128 512 0
+mig_expect "旧值 512（全新安装 / 已迁移）→ 不动也不报错" 512 512 0
+mig_expect "旧值 256（操作者自己调过）→ 尊重原值不回改" 256 256 0
+mig_expect "旧值为空（选项缺失）→ 迁移到 512" "" 512 0
+mig_expect "system 段缺失 → 计一次失败（留给下次开机重试）" "" "" 1 0
 
 echo
 printf '%s通过 %d 项，失败 %d 项%s\n' "$([ $FAIL -eq 0 ] && printf '%s' "$c_g" || printf '%s' "$c_r")" "$PASS" "$FAIL" "$c_0"
