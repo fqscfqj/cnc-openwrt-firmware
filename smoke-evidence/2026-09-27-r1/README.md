@@ -1,7 +1,19 @@
 # QEMU 冒烟证据（2026-09-27 / 固件 r1）
 
-本目录是 **OpenWrt 25.12.5 / cnc1338np12 / r1** 那份镜像的 QEMU 冒烟原始记录，
-由 `tests/qemu-smoke.sh` 自动生成（脚本见仓库 `tests/qemu-smoke.sh`，说明见手册 §2.1）。
+> ⚠️ **先读这段：本目录的证据是"历史快照"，它证明的不是"现在发布的那份图"**
+>
+> 本目录记录的是 **2026-09-27 那次构建**（`OPENWRT_VERSION=25.12.5`,
+> `FIRMWARE_BUILD=r1`）的两份镜像的冒烟结果。**之后 `firmware-latest` 被覆盖过**
+> （2026-10-02 的 25.12.5-r1，含 IPTV 与 `kmod-nft-tproxy` 等改动），那份图的
+> sha256 与此处的两份都不同 —— 也就是说 **本目录的 79/79 并不构成对"当前发布图"
+> 的证明**。当时的 CI 冒烟是手动勾选项（默认关闭），发布步骤也没有门禁，
+> 所以"发布出去的镜像从没起过机"是可能的。
+>
+> **2026-10 起已改成：推送到 main 一律跑冒烟，且发布步骤前置了一道
+> "必须有通过的冒烟证据"的检查**（见 `.github/workflows/build.yml` 的
+> 「发布门禁」步骤）。所以从那以后，`firmware-latest` 上的那份图**必然**有
+> 同一次构建产出的 `qemu-smoke-results.txt` 作为证据，见该次 CI run 的
+> `qemu-smoke-*` artifact。刷新本目录的步骤见上一级 `smoke-evidence/README.md`。
 
 ## 结论
 
@@ -11,18 +23,26 @@
 boot_marker=Please press Enter to activate this console
 ```
 
-## 被测对象
+（79 是**当时** `tests/qemu-smoke.sh` 的断言数；脚本后来陆续加过断言，
+现在请以仓库里脚本的实际条数为准。）
+
+## 被测对象（严格对应关系）
 
 | 项 | 值 |
 |---|---|
 | 镜像 | `openwrt-25.12.5-x86-64-cnc1338np12-r1-ext4-combined-efi.img.gz` |
 | 本目录（`qemu-smoke-*.txt/log`）测的 sha256 | `bb5c8518f257acdefc095a34cf67464e52d7c976cf1d340f3bb2c881070b9bd9`（构建机 Debian 13 本地出的图，**KVM** 加速，79/79） |
-| `ci/` 子目录测的 sha256 | `c67ab162b541bd5827706e338ab3848836e61e960118ab0ac37be9099fa53d3e`（48,667,846 B）＝ **当前 `firmware-latest` 发布的那份图**（GitHub Actions 出图，**无 KVM 的 TCG 软件模拟**，79/79） |
+| `ci/` 子目录测的 sha256 | `c67ab162b541bd5827706e338ab3848836e61e960118ab0ac37be9099fa53d3e`（48,667,846 B）—— 2026-09-27 那次 CI 出的图（GitHub Actions，**无 KVM 的 TCG 软件模拟**，79/79） |
 | 分区指纹 | `entry1 64MiB@512` / `entry2 4096MiB@131584` / `entry128 32KiB@34 BIOSboot`（与 `layout-reference.txt` 一致） |
 | 内核 | 6.12.94（`uname -r` 实测） |
 | 运行环境 | Debian 13 虚拟机（4 vCPU / 8 GB）、QEMU 10.0.13、OVMF 4M、**KVM 加速**（嵌套虚拟化） |
 | 虚拟硬件 | 磁盘 virtio-blk、4 × e1000e（⇒ eth0/eth1/eth2/eth3，与真机口序一致）、2048 MB 内存 |
 | 总耗时 | 约 3.5 分钟（含 4.2 GB 镜像解压；纯 TCG 软件模拟约 5–10 分钟） |
+
+> 供对照：2026-10-02 覆盖 `firmware-latest` 的那份图是
+> `65741d8dc89df46d623b421d034d9e97dad112032011cd35ab753bb2c1ad3609`
+> （50,796,780 B，`built_at=2026-10-02T06:50:20Z`）—— **不在本目录的证据范围内**；
+> 它的冒烟证据在该次 CI run 的 artifact 里（那次流水线尚未启用发布门禁）。
 
 ## 文件
 
@@ -39,10 +59,10 @@ boot_marker=Please press Enter to activate this console
 | 跑在哪 | 加速 | 结果 | 镜像 sha256 |
 |---|---|---|---|
 | 构建机 Debian 13（本目录） | KVM（嵌套虚拟化） | **79/79 通过**，整轮约 3.5 分钟 | `bb5c8518…` |
-| GitHub Actions ubuntu-24.04（`ci/`） | 无 KVM ⇒ TCG 软件模拟 | **79/79 通过**，QEMU 起到控制台约 71 秒 | `c67ab162…`（＝发布的 `firmware-latest`） |
+| GitHub Actions ubuntu-24.04（`ci/`） | 无 KVM ⇒ TCG 软件模拟 | **79/79 通过**，QEMU 起到控制台约 71 秒 | `c67ab162…` |
 
-也就是说：**现在挂在 `firmware-latest` 上、路由器一键升级会下载到的那份镜像，本身通过了全部 79 项断言。**
-
+两次跑的都是 2026-09-27 那批构建；同一套断言换个加速方式、换台机器结果一致，
+说明"冒烟通过"不是靠某台机器的偶然状态。
 
 ## 验到了什么（摘要）
 
@@ -58,43 +78,3 @@ boot_marker=Please press Enter to activate this console
   三个包 + LuCI 相关文件都在。
 * **自研在线升级页完整**：`/usr/sbin/cnc-upgrade` 可执行且 `--help` 正常、
   menu.d/acl.d/视图/`keep.d/99-cnc-plugins`/`/etc/cnc-release` 齐全。
-* **内核模块齐全**：`igc.ko`、`tun.ko`、`zram.ko`、`e1000e.ko`；zram swap 1.2 GB 已挂上。
-* **包管理器状态正确**：`dnsmasq-full` 在、`dnsmasq` 已不在（替换真的生效），共 281 个包。
-* **Web 栈可用**：uhttpd 在跑，`http://127.0.0.1/` 返回 LuCI 的 HTML，
-  `/luci-static/resources/luci.js` 真能取到内容，`/cgi-bin/luci/` 无会话时按预期返回 403。
-
-## 这一轮冒烟抓到并修掉的问题
-
-1. **（真 bug）`wan_6` 从来没进 firewall 的 wan zone**：首启脚本原来用
-   `uci -q get firewall.wan` 找 wan zone，而官方默认 firewall 里 wan zone 是**匿名段**
-   （`config zone` + `option name 'wan'`）⇒ 永远取不到，结果 `wan6`/`wan_6` 都没登记。
-   离线校验只看文件内容，看不出来；进系统 `uci show firewall` 一看就露了。已改成按
-   `option name` 扫 `firewall.@zone[i]`。
-2. **（真 bug）列表重复**：`uci get` 对 list 选项是**空格分隔的一行**，原脚本用
-   `grep -qx` 判断"是否已存在"永远匹配不上 ⇒ 每跑一次就 `add_list` 一次（实测
-   `network='wan' 'wan6' 'wan6' 'wan_6'`）。已改成 `grep -qw`，并加了"wan6/wan_6/阿里 DNS
-   各只出现一次"的断言防回归。
-3. **（断言自身写错，非镜像问题）**：busybox `wget` 没有 `-S`；`uci show` 只把 list 的
-   第一个值挂在 `=` 后面（`ports='eth2' 'eth3'`）。这两条都按实测重新写准了断言，
-   并把 `wget`/`uci` 的真实输出存进 `qemu-smoke-system-info.txt` 便于以后对照。
-
-## 已知的无害现象 / 验不了的部分
-
-* 串口日志开头 GRUB 会报 `error: can't find command 'search'`：GRUB 镜像里没带 `search`
-  模块。因为 `$root` 默认就是刚引导的那个 ESP，而 `vmlinuz` 就在 ESP 的 `/boot/` 下，
-  所以不影响启动（本次一路启动成功，真机亦然）。属于外观问题。
-* `odhcpd: No default route present, setting ra_lifetime to 0!`：QEMU 里没有运营商 IPv6
-  上游，属预期。
-* QEMU 里**没有 Intel I226-V、没有光猫/PPPoE 环境**，所以下面三项仍然只能上机核对
-  （见手册 §5）：igc 真机驱动是否带起 4 个口、PPPoE 拨号、IPv6 从运营商拿地址/前缀（PD）。
-
-## 怎么复现
-
-```bash
-# 构建机（Debian/Ubuntu）
-sudo apt install -y qemu-system-x86 ovmf
-cd fn
-CNC_QEMU_OUT=$PWD/out bash tests/qemu-smoke.sh out/openwrt-*.img.gz
-# 或者整条流水线：
-RUN_QEMU_SMOKE=1 bash build.sh
-```

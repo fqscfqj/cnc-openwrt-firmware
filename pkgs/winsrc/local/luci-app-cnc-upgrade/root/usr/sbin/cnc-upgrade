@@ -5,11 +5,16 @@
 # 设计要点：
 #   * 所有逻辑都在本脚本里，LuCI 页面只负责调用与展示 ⇒ 可以脱离硬件做单测。
 #   * stdout 只输出 JSON（给页面解析），人类可读信息一律走 stderr。
-#   * 刷写前必须通过：sha256 校验 + 大小校验 + sysupgrade --test 镜像可用性检查。
+#   * 刷写前必须依次通过四道关（缺一道都可能"升级成功但东西没了"）：
+#       ① sha256 + 文件大小校验
+#       ② sysupgrade --test（镜像与设备匹配）
+#       ③ 分区布局比对 —— 布局变了 sysupgrade 会整盘覆写，必须拦住
+#       ④ 配置备份体积预算 —— 备份放不下时 platform_copy_config 不检查 cp 失败，
+#          升级照样"成功"、重启后配置却是空的，必须提前量一次
 #
 # 子命令：
 #   check     比对本地 /etc/cnc-release 与远端 latest.json，输出可用性
-#   download  下载镜像到暂存目录并校验（含 sysupgrade --test）
+#   download  下载镜像到暂存目录并校验（sha256 + 大小 + sysupgrade --test）
 #   flash     在已校验的镜像上执行 sysupgrade（默认保留配置）
 #   clean     清空暂存目录
 #
@@ -19,6 +24,9 @@
 #   CNC_SYSUPGRADE    /sbin/sysupgrade            sysupgrade 路径（测试可替换成桩）
 #   CNC_URL           覆盖配置里的 latest.json 地址
 #   CNC_PROXY         覆盖配置里的加速前缀
+#   CNC_BOOT_MNT      引导分区挂载点（默认 /boot）——备份体积预算用
+#   CNC_BACKUP_BUDGET_KB
+#                     直接指定备份体积预算（KiB），跳过"读引导分区可用空间"
 # =============================================================================
 set -eu
 
@@ -26,6 +34,8 @@ CONF_NAME='cnc_upgrade'
 REL_FILE="${CNC_RELEASE_FILE:-/etc/cnc-release}"
 STAGE="${CNC_STAGE_DIR:-/tmp/cnc-upgrade}"
 SYSUP="${CNC_SYSUPGRADE:-/sbin/sysupgrade}"
+BOOT_MNT="${CNC_BOOT_MNT:-/boot}"
+LOCK="$STAGE/.lock"
 
 say() { printf '%s\n' "$*" >&2; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -42,10 +52,28 @@ wrap_url() { # <url>
 	if [ -n "$p" ]; then printf '%s%s' "$p" "$1"; else printf '%s' "$1"; fi
 }
 
+# ---------------------------------------------------------------- 单实例锁
+# 双击/两个标签页 = 两个 sysupgrade 同时写同一块盘 = 变砖。这里用 mkdir 做原子锁。
+acquire_lock() {
+	mkdir -p "$STAGE"
+	if ! mkdir "$LOCK" 2>/dev/null; then
+		local pid; pid="$(cat "$LOCK/pid" 2>/dev/null || true)"
+		if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+			die "已有升级任务在运行（pid $pid），拒绝并发执行"
+		fi
+		say "清理陈旧的升级锁（pid ${pid:-未知} 已不存在）"
+		rm -rf "$LOCK"
+		mkdir "$LOCK" 2>/dev/null || die "无法创建升级锁 $LOCK"
+	fi
+	printf '%s' "$$" > "$LOCK/pid"
+	trap 'rm -rf "$LOCK"' EXIT HUP INT TERM
+}
+
 # ---------------------------------------------------------------- 本地版本
 # /etc/cnc-release 形如：
 #   OPENWRT_VERSION=25.12.5
 #   FIRMWARE_BUILD=r1
+#   BUILT_AT=2026-10-02T06:42:49Z      ← 与 latest.json 的 built_at 同源，见 build.sh
 rel_field() { # <KEY>
 	[ -s "$REL_FILE" ] || return 1
 	sed -n "s/^$1=//p" "$REL_FILE" | head -1
@@ -54,6 +82,22 @@ rel_field() { # <KEY>
 # ---------------------------------------------------------------- JSON 取值
 jget() { # <file> <expr>
 	jsonfilter -i "$1" -e "$2" 2>/dev/null || true
+}
+
+# 把要塞进 JSON 字符串的取值收拾干净：去换行、转义反斜杠与双引号。
+# 不做这一步的话，远端 latest.json 里一个引号就能让页面的 JSON.parse 抛异常。
+jstr() { printf '%s' "$1" | tr -d '\r\n' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+
+# 数值字段兜底：空/非数字一律当 0，否则会输出 "size": ,（非法 JSON）。
+jnum() { case "${1:-}" in ''|*[!0-9]*) printf '0' ;; *) printf '%s' "$1" ;; esac; }
+
+# 远端 file 字段只允许"纯文件名"：它会被拼进路径、用于 rm -f，最后交给 sysupgrade。
+# 带 / 或 . 开头就能穿出暂存目录（删任意文件 / 把任意文件当镜像刷）。
+valid_file_name() { # <name>
+	case "$1" in
+		''|.|..|.*|*/*|-*) return 1 ;;
+		*) return 0 ;;
+	esac
 }
 
 # ---------------------------------------------------------------- 取 latest.json
@@ -66,7 +110,8 @@ fetch_latest() { # <dest>
 		|| die "下载 latest.json 失败（检查网络或 ${CONF_NAME}.settings.proxy）"
 	mv -f "$1.part" "$1"
 	[ -s "$1" ] || die "latest.json 为空"
-	jget "$1" '@.schema' >/dev/null 2>&1 || true
+	[ "$(jnum "$(jget "$1" '@.schema')")" = "1" ] \
+		|| die "latest.json 的 schema 不是 1（本脚本只认 schema 1）"
 	[ "$(jget "$1" '@.sha256')" != "" ] || die "latest.json 内容不合法（缺少 sha256）"
 }
 
@@ -93,21 +138,48 @@ cmp_ver() { # <本地> <远端>
 	if ver_gt "$b" "$a"; then printf 'upgrade'; else printf 'downgrade'; fi
 }
 
+# FIRMWARE_BUILD 形如 r1/r2/r10：取出数字部分才能比大小。
+# ★ 只比字符串相等是不够的：r2 的机器遇到远端的 r1 会被当成"有新固件"推给用户。
+build_num() { # <rN> → N；不是 rN 形式返回非 0
+	case "${1:-}" in
+		r[0-9]*) ;;
+		*) return 1 ;;
+	esac
+	local s="${1#r}"
+	case "$s" in ''|*[!0-9]*) return 1 ;; esac
+	printf '%s' "$s"
+}
+
 # ---------------------------------------------------------------- check
 do_check() {
 	local js="$STAGE/latest.json"
-	local lv lb rv rb ravail dir
+	local lv lb lat rv rb rat rsha ravail dir
 	lv="$(rel_field OPENWRT_VERSION || true)"; lb="$(rel_field FIRMWARE_BUILD || true)"
+	lat="$(rel_field BUILT_AT || true)"
 	fetch_latest "$js"
 	rv="$(jget "$js" '@.openwrt_version')"; rb="$(jget "$js" '@.firmware_build')"
+	rat="$(jget "$js" '@.built_at')"; rsha="$(jget "$js" '@.sha256')"
 	[ -n "$rv" ] || die "远端 latest.json 缺少 openwrt_version"
 
-	if [ "$lv" = "$rv" ] && [ "$lb" = "$rb" ]; then
+	local ln rn
+	ln="$(build_num "$lb" || true)"; rn="$(build_num "$rb" || true)"
+
+	if [ "$lv" = "$rv" ] && [ "$lb" = "$rb" ] && [ -n "$lat" ] && [ "$lat" = "$rat" ]; then
+		# 版本号、构建号、构建时间三者全同 ⇒ 就是同一份固件
 		ravail=0; dir=same
+	elif [ "$lv" = "$rv" ] && [ -n "$ln" ] && [ -n "$rn" ]; then
+		# 同一个 OpenWrt 版本：按 rN 的数字比。
+		# rN 相同但 built_at 不同 ⇒ 同名重发（改了内容却没升构建号），仍应提示可升级，
+		# 否则"只改两个值"里漏改 FIRMWARE_BUILD 的那次发布，路由器永远看不到。
+		ravail=1
+		if [ "$rn" -gt "$ln" ]; then dir=upgrade
+		elif [ "$rn" -lt "$ln" ]; then dir=downgrade
+		else dir=upgrade
+		fi
 	else
 		ravail=1
 		if [ "$lv" = "$rv" ]; then
-			dir=upgrade   # 同版本不同构建号 = 新固件
+			dir=upgrade   # 同版本、构建号非 rN 形式：保守按"有新固件"处理
 		else
 			dir="$(cmp_ver "$lv" "$rv")"
 		fi
@@ -116,22 +188,91 @@ do_check() {
 	cat <<EOF
 {
   "ok": true,
-  "current": { "openwrt_version": "$lv", "firmware_build": "$lb" },
+  "current": { "openwrt_version": "$(jstr "$lv")", "firmware_build": "$(jstr "$lb")", "built_at": "$(jstr "$lat")" },
   "remote": {
-    "openwrt_version": "$rv",
-    "firmware_build": "$rb",
-    "kver": "$(jget "$js" '@.kver')",
-    "file": "$(jget "$js" '@.file')",
-    "url": "$(jget "$js" '@.url')",
-    "sha256": "$(jget "$js" '@.sha256')",
-    "size": $(jget "$js" '@.size' 2>/dev/null || echo 0),
-    "built_at": "$(jget "$js" '@.built_at')",
-    "notes": "$(jget "$js" '@.notes')"
+    "openwrt_version": "$(jstr "$rv")",
+    "firmware_build": "$(jstr "$rb")",
+    "kver": "$(jstr "$(jget "$js" '@.kver')")",
+    "file": "$(jstr "$(jget "$js" '@.file')")",
+    "url": "$(jstr "$(jget "$js" '@.url')")",
+    "sha256": "$(jstr "$rsha")",
+    "size": $(jnum "$(jget "$js" '@.size')"),
+    "built_at": "$(jstr "$rat")",
+    "notes": "$(jstr "$(jget "$js" '@.notes')")"
   },
   "available": $ravail,
   "direction": "$dir"
 }
 EOF
+}
+
+# ---------------------------------------------------------------- 镜像探测
+# 用 sysupgrade --test 探一次镜像。设置：
+#   PROBE_RC      sysupgrade --test 的返回码（0 = 镜像与设备匹配）
+#   PROBE_LAYOUT  1 = 分区布局与镜像不一致
+#
+# ★ 关键：布局不一致时 sysupgrade --test **依然返回 0**（x86 的 platform_check_image
+#   只打一行 "Partition layout has changed. Full image will be written." 就 return 0），
+#   所以只看返回码是挡不住的，必须连输出一起看。该行由 platform.sh 用 v() 打印到
+#   stderr（validate_firmware_image 里做了 `platform_check_image "$1" >&2`），
+#   实测（2026-10 真机）：改掉镜像 GPT 里 p2 的 last LBA 后，--test 返回 0 且
+#   stderr 里出现该行。上游若改文案，这里会退化成"不拦"（不会误拦）。
+probe_image() { # <img>
+	PROBE_RC=0; PROBE_LAYOUT=0
+	if [ ! -x "$SYSUP" ] && ! command -v "$SYSUP" >/dev/null 2>&1; then
+		PROBE_RC=127
+		return 0
+	fi
+	local out
+	out="$("$SYSUP" --test "$1" 2>&1)" || PROBE_RC=$?
+	printf '%s\n' "$out" | grep -q 'Partition layout has changed' && PROBE_LAYOUT=1
+	return 0
+}
+
+# ---------------------------------------------------------------- 备份体积预算
+# sysupgrade 的 platform_copy_config() 是：
+#     cp -af "$UPGRADE_BACKUP" "/mnt/$BACKUP_FILE"; umount /mnt
+# 它**不检查 cp 的返回状态**，函数返回的是 umount 的状态，而 do_stage2 也不检查。
+# ⇒ 备份一旦放不下引导分区，升级会照常完成、照常重启，配置静默丢失。
+# 所以这里按 sysupgrade 自己的方式真生成一次备份来量体积，再和引导分区可用空间比。
+backup_budget_kb() { # 输出可用 KiB；无法判定时返回非 0
+	local kb
+	# 显式覆盖（单测用，也方便排障时临时放宽/收紧）
+	case "${CNC_BACKUP_BUDGET_KB:-}" in
+		''|*[!0-9]*) ;;
+		*) printf '%s' "$CNC_BACKUP_BUDGET_KB"; return 0 ;;
+	esac
+	# 首选：引导分区已挂载（本工程 ext4-combined-efi 的常态）→ 读真实可用空间
+	if [ -r /proc/mounts ] && grep -q " $BOOT_MNT " /proc/mounts 2>/dev/null; then
+		kb="$(df -k "$BOOT_MNT" 2>/dev/null | awk 'NR==2 {print $4}')"
+		case "${kb:-}" in ''|*[!0-9]*) ;; *) printf '%s' "$kb"; return 0 ;; esac
+	fi
+	# 兜底：用 /etc/cnc-release 里的分区常量算静态预算，给内核 + GRUB 留 8 MiB
+	local p1; p1="$(rel_field KERNEL_PARTSIZE || true)"
+	case "${p1:-}" in ''|*[!0-9]*) return 1 ;; esac
+	printf '%s' "$(( p1 * 1024 - 8 * 1024 ))"
+}
+
+backup_probe_kb() { # <输出文件> → 输出备份体积 KiB；无法生成时返回非 0
+	rm -f "$1"
+	if ! "$SYSUP" -b "$1" >/dev/null 2>&1; then return 1; fi
+	[ -s "$1" ] || return 1
+	printf '%s' "$(( $(wc -c < "$1") / 1024 ))"
+}
+
+check_backup_budget() {
+	local probe="$STAGE/backup-probe.tgz" bsz bud
+	if ! bsz="$(backup_probe_kb "$probe")"; then
+		say "警告：无法生成本地备份量探测（$SYSUP -b 失败），跳过体积预算检查"
+		return 0
+	fi
+	rm -f "$probe"
+	if ! bud="$(backup_budget_kb)"; then
+		say "警告：无法判定引导分区可用空间，跳过体积预算检查（本次备份 ${bsz} KiB）"
+		return 0
+	fi
+	say "配置备份量 ${bsz} KiB / 引导分区可用 ${bud} KiB"
+	[ "$bsz" -lt "$bud" ] || die "配置备份 ${bsz} KiB 超过引导分区可用空间 ${bud} KiB —— 刷写后配置会**静默**丢失（sysupgrade 的 platform_copy_config 不检查 cp 失败）。请先精简 /lib/upgrade/keep.d/99-cnc-plugins 与 /etc/sysupgrade.conf 里登记的大文件（可重新下载的内核/规则库不要放进备份），或先用 LuCI『系统 → 备份/刷写固件』手工导出配置再升级。"
 }
 
 # ---------------------------------------------------------------- download
@@ -142,6 +283,8 @@ do_download() {
 	file="$(jget "$js" '@.file')"; url="$(jget "$js" '@.url')"
 	sha="$(jget "$js" '@.sha256')"; size="$(jget "$js" '@.size')"
 	[ -n "$file" ] && [ -n "$url" ] && [ -n "$sha" ] || die "latest.json 缺少 file/url/sha256"
+	valid_file_name "$file" \
+		|| die "latest.json 的 file 字段不是纯文件名（'$file'）：拒绝把它当路径用"
 	img="$STAGE/$file"
 
 	# 已有且校验通过就直接复用
@@ -174,14 +317,20 @@ do_download() {
 	fi
 
 	# 校验 3：让 sysupgrade 自己判一次（--test 会走 platform_check_image）
-	if [ -x "$SYSUP" ] || command -v "$SYSUP" >/dev/null 2>&1; then
-		say "执行镜像可用性检查：$SYSUP --test"
-		"$SYSUP" --test "$img" >/dev/null 2>&1 || { rm -f "$img"; die "sysupgrade --test 未通过（镜像与设备不匹配）"; }
-		say "镜像可用性检查通过"
+	probe_image "$img"
+	[ "$PROBE_RC" = "0" ] || { rm -f "$img"; die "sysupgrade --test 未通过（rc=$PROBE_RC，镜像与设备不匹配）"; }
+	say "镜像可用性检查通过"
+	[ "$PROBE_LAYOUT" = "0" ] || say "注意：分区布局与镜像不一致，刷写会整盘覆写（flash 会被拦下）"
+
+	# 校验 4：配置备份体积预算（保留配置时才需要）
+	if [ "$(conf_keep)" = "1" ]; then
+		check_backup_budget
+	else
+		say "keep_config=0：本次刷写清空配置，跳过备份体积预算检查"
 	fi
 
 	cat <<EOF
-{ "ok": true, "file": "$file", "path": "$img", "sha256": "$got_sha", "size": ${got_size:-0} }
+{ "ok": true, "file": "$(jstr "$file")", "path": "$(jstr "$img")", "sha256": "$(jstr "$got_sha")", "size": $(jnum "${got_size:-0}"), "layout_change": $PROBE_LAYOUT }
 EOF
 }
 
@@ -191,31 +340,51 @@ do_flash() {
 	local file img sha got_sha keep args
 	[ -s "$js" ] || fetch_latest "$js"
 	file="$(jget "$js" '@.file')"; sha="$(jget "$js" '@.sha256')"
+	[ -n "$file" ] || die "latest.json 缺少 file"
+	valid_file_name "$file" \
+		|| die "latest.json 的 file 字段不是纯文件名（'$file'）：拒绝把它当路径用"
 	img="$STAGE/$file"
 	[ -s "$img" ] || { say "尚未下载镜像，先执行 download"; do_download >/dev/null; }
 	got_sha="$(sha256sum "$img" | cut -d' ' -f1)"
 	[ "$got_sha" = "$sha" ] || die "刷写前校验失败，已中止（sha256 不符）"
 
+	# 关③：分区布局。布局一变，sysupgrade 会 get_image_dd 整盘覆写并重写 GPT，
+	# 镜像里没有的分区（以及被改过尺寸的分区）就没了 —— 而且网页流程里没有确认步骤。
+	probe_image "$img"
+	[ "$PROBE_RC" = "0" ] || die "镜像可用性检查未通过（sysupgrade --test rc=$PROBE_RC），拒绝刷写"
+	[ "$PROBE_LAYOUT" = "0" ] || die "分区布局与镜像不一致：sysupgrade 会**整盘覆写**并重写分区表（它会打印 'Partition layout has changed. Full image will be written.'），镜像里没有的分区会丢，而这一步在网页流程里没有确认对话框。若你是从别的系统（Kwrt 等）首次切过来，这是预期的一次性整盘写 —— 请改用 LuCI『系统 → 备份/刷写固件』或手工 sysupgrade -F，并先备份数据（本页面刻意不做整盘操作）。若你已经在跑本固件却看到这条，说明磁盘上 p1/p2 的尺寸或分区号被改过（例如扩过 p2、动过分区表），先把布局改回与镜像一致再升级。"
+
 	keep="$(conf_keep)"
+	# 关④：备份体积预算（保留配置时才有意义）。放在最后一步之前，
+	# 因为 sysupgrade -b 要跑十几秒，前面几关先挡掉明显不合格的镜像。
+	[ "$keep" = "0" ] || check_backup_budget
+
 	args=""
 	[ "$keep" = "0" ] && args="-n"
 	say "开始刷写：$SYSUP $args $img（保留配置=$( [ "$keep" = 1 ] && echo 是 || echo 否 )）"
 	cat <<EOF
-{ "ok": true, "started": true, "file": "$file", "keep_config": $keep }
+{ "ok": true, "started": true, "file": "$(jstr "$file")", "keep_config": $keep }
 EOF
 	# sysupgrade 成功后设备会立即重启，所以下面这行通常不会返回
 	exec "$SYSUP" $args "$img"
 }
 
 # ---------------------------------------------------------------- clean
-do_clean() { rm -rf "$STAGE"; printf '{ "ok": true }\n'; }
+do_clean() {
+	# 兜底：$STAGE 只可能来自 CNC_STAGE_DIR 覆盖，但 rm -rf / 的代价太大
+	case "${STAGE:-}" in
+		''|/|/tmp|/etc|/usr|/var) die "拒绝对 '$STAGE' 执行 clean" ;;
+	esac
+	rm -rf "$STAGE"
+	printf '{ "ok": true }\n'
+}
 
 usage() {
 	cat <<'EOF'
 用法: cnc-upgrade <check|download|flash|clean>
 
   check     检查是否有新固件（输出 JSON）
-  download  下载并校验镜像（sha256 + 大小 + sysupgrade --test）
+  download  下载并校验镜像（sha256 + 大小 + sysupgrade --test + 备份体积预算）
   flash     刷写已校验的镜像（默认保留配置）
   clean     清空暂存目录（/tmp/cnc-upgrade）
 EOF
@@ -223,8 +392,8 @@ EOF
 
 case "${1:-}" in
 	check)    do_check ;;
-	download) do_download ;;
-	flash)    do_flash ;;
+	download) acquire_lock; do_download ;;
+	flash)    acquire_lock; do_flash ;;
 	clean)    do_clean ;;
 	-h|--help|"") usage; [ -n "${1:-}" ] || exit 2 ;;
 	*) usage; exit 2 ;;

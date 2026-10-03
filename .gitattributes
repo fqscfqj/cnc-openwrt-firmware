@@ -1,0 +1,17 @@
+# =============================================================================
+# 换行符：一律 LF
+# -----------------------------------------------------------------------------
+# 这个仓库里有几类文件是"要原样落到 Linux 路由器上执行/解析"的：
+#   files/**               被 build.sh 原样 cp 进镜像；其中 uci-defaults 首启脚本
+#                          要在路由器的 /bin/sh 下真的跑起来
+#   *.sh                  在 Debian/Ubuntu 构建机上跑
+#   .github/workflows/**  由 CI 直接执行
+# 它们在 Windows 工作区被 checkout 成 CRLF 时会出这些事（都是"看着没问题、其实没生效"）：
+#   * `#!/bin/sh\r` ⇒ 路由器上报 "not found"
+#   * files/etc/sysupgrade.conf 每行末尾多个 \r ⇒ 上游 list_static_conffiles 是
+#     `find $(sed ...)`，带 \r 的路径根本不存在 ⇒ **升级备份里静默少几项**
+#   * uci 对 \r 虽然宽容（当空白处理），但没必要赌
+#
+# 仓库里存的本来就是 LF（`core.autocrlf=true` 的 Windows 工作区才会变成 CRLF），
+# 这里显式钉住，免得下次 checkout 又变回去。二进制文件由 text=auto 自动识别、不受影响。
+* text=auto eol=lf

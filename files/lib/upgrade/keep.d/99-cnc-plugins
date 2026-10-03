@@ -2,6 +2,8 @@
 # 机制：sysupgrade 的 list_static_conffiles() 会读取 /lib/upgrade/keep.d/* 与
 #       /etc/sysupgrade.conf（已核对 25.12 源码），本机 apk 环境下 /etc/config/
 #       下的配置文件另由包 conffiles 自动保留。
+#       注意：这套机制**只能"加"，没有任何排除语法** —— 列出了目录就会整个递归收进去，
+#       所以下面每一条都是"整目录进备份"，不要以为能靠注释或顺序排掉某个大文件。
 #
 # 逐个来源（便于日后核对）：
 #   /etc/openclash         OpenClash 配置、订阅、规则集、Clash 内核
@@ -12,6 +14,53 @@
 #   /etc/msd_lite          msd_lite 配置目录（含 msd_lite.conf.sample）
 #   Bandix 无需在此登记：bandix 包自带 /lib/upgrade/keep.d/bandix，登记 /usr/share/bandix
 #   WireGuard 无需在此登记：私钥与 peer 都在 /etc/config/network（conffile）
+#
+# ============================================================================
+# ★ 备份体积预算（2026-10 真机实测，务必先读这段再动清单）★
+# ----------------------------------------------------------------------------
+# sysupgrade 把配置备份写成 tar.gz 后 **cp 到引导分区 p1**（本工程 p1 = 64 MiB，
+# 见 versions.env 的 KERNEL_PARTSIZE），而上游 platform_copy_config() 是：
+#     cp -af "$UPGRADE_BACKUP" "/mnt/$BACKUP_FILE"; umount /mnt
+# ——**它不检查 cp 的返回状态**，函数返回的是 umount 的状态，do_stage2 也不检查。
+# 所以"备份放不下"这件事是**静默**的：升级照常完成、照常重启，配置却没了
+# （PPPoE 账号、WireGuard 私钥、插件订阅全丢）。
+#
+# 真机实测（CncTion 1338NP-12 / 2026-10-03）：
+#     sysupgrade -b /tmp/bk.tgz  →  45,732,165 字节 = 43.6 MiB（耗时约 9.5 s）
+#     df -k /boot                →  可用 59,048 KiB = 57.7 MiB
+#     ⇒ 已用掉 75.6%，余量只剩约 14 MiB。组成（未压缩）：
+#         /etc/config/lucky.daji/ipdb/qqwry.ipdb  40.5 MB  ← 纯真 IP 库
+#         /etc/openclash/core/clash_meta          16.0 MB  ← mihomo 内核
+#         /etc/openclash/GeoIP.dat                17.3 MB
+#         /etc/openclash/ASN.mmdb                 11.9 MB
+#         /etc/openclash/GeoSite.dat              10.9 MB
+#
+# 因此 **cnc-upgrade（固件在线升级页）在刷写前会真跑一次 `sysupgrade -b` 量体积，
+# 和引导分区可用空间比，超了就拒绝刷写并报出两个数字**（见该脚本的
+# check_backup_budget()）。这条守卫是这套清单的"安全阀"：清单以后变大也不会再
+# 变成静默丢配置。验证据 tests/run.sh 里"备份体积预算"那几个用例。
+#
+# 如果哪天守卫真的拦下来了，按下面的顺序精简（每一步都实测过收益）：
+#   ① /etc/openclash       去掉 core/GeoIP.dat/GeoSite.dat/ASN.mmdb 后
+#                          43.2 MiB → 14.7 MiB（省约 28.5 MiB）
+#      ★ 代价必须先掂量 ★ OpenClash **只**会在启动时自动补下「内核」与
+#        「china_ip_route/china_ip6_route 两个 ipset」（已核对 /etc/init.d/openclash
+#        里的 "Core is not Detected installed" / "Chnroute Cidr is not Installed" 两段），
+#        GeoIP.dat / GeoSite.dat / ASN.mmdb / Country.mmdb **没有**自动补下逻辑，
+#        少了它们、而配置里又有 GEOIP/GEOSITE 规则时 mihomo 会起不来。
+#        更要紧的是：那两段自动补下都要在**冷启动、代理还没起来**的时候直连
+#        GitHub（raw.githubusercontent.com），大陆网络基本拉不动 ⇒ 结果是
+#        "升级完 OpenClash 不启动"。所以本工程**故意不精简这一条**。
+#   ② /etc/config/lucky.daji/ipdb       再省约 13.5 MiB（43.2 → 1.2 MiB）
+#       纯真 IP 库，Lucky 的「IP库」页面可以重新下载；代价是 IP 归属地显示为空，
+#       且如果 Lucky 的 IP 过滤/安全组依赖库文件，规则可能暂时失效 —— 请自行确认。
+#      ★ 但**不能靠"列个目录再排掉它"**：本机制没有排除语法，要排只能改成
+#        "逐个列出 lucky_*.lkcf"，那样以后 Lucky 新增一个 .lkcf 就会**静默地**
+#        不被备份。所以要么整目录收（本工程的选择），要么显式接受这个维护负担。
+#
+# 结论：本工程选择"清单保持整目录、用 cnc-upgrade 的预算守卫兜底"，
+#       因为"升级后配置静默丢失"比"备份文件偏大"严重得多。
+# ============================================================================
 
 /etc/openclash
 /etc/lucky

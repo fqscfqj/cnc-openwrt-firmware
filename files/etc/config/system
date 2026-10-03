@@ -3,13 +3,21 @@
 #       重新生成配置，因此这里的取值就是首启后的生效值。
 #       zram_size_mb / zram_comp_algo 由 zram-swap 的 zram.init 从 system.@system[0]
 #       读取（已核对 25.12 源码）。
+#
+# log_size 为什么从默认的 128 提到 512（KB）：
+#   真机实测，当前这份 128 KB 的环形缓冲里 1178 行有 336 行（28.5%）是
+#   miniupnpd 的 "delete_redirect_and_filter_rules: redirect rule with eport=...
+#   NOT FOUND" —— 那是 qBittorrent 每轮申请/释放随机端口映射的正常噪声
+#   （实测与 /var/run/miniupnpd.leases 对得上，不是故障），加上 dnsmasq 的
+#   nftset 报错与 DHCP 日志，真正有用的信息很容易被挤掉。
+#   512 KB 对本机（3.7 GB 内存 / 3.9 GB rootfs）毫无压力，能让历史多留几倍。
 
 config system
 	option hostname 'cnc1338np12'
 	option timezone 'CST-8'
 	option zonename 'Asia/Shanghai'
 	option ttylogin '0'
-	option log_size '128'
+	option log_size '512'
 	option urandom_seed '0'
 	option compat_version '1.0'
 	option zram_size_mb '1239'

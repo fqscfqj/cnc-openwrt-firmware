@@ -43,6 +43,25 @@ bad()  { printf '  %s✘%s %s\n' "$c_r" "$c_0" "$*"; }
 warn() { printf '  %s!%s %s\n' "$c_y" "$c_0" "$*"; }
 die()  { printf '%s✘ %s%s\n' "$c_r" "$*" "$c_0" >&2; exit 1; }
 
+# ------------------------------------------------------------------ 版本号来源
+# ★ 不要把这些值写死在断言里 ★ 否则按 README 的"只改两个值"升级版本号之后，
+#   这套冒烟会必挂（而 CI 的发布门禁现在依赖它冒烟通过）。
+#   取值规则：环境变量优先（build.sh / CI 会传生效值），否则回退到 versions.env。
+HERE_SMOKE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ver_from_env() { # <KEY>
+	local k="$1" cur
+	eval "cur=\${$k:-}"
+	if [ -z "$cur" ]; then
+		cur="$(sed -n "s/^$k=//p" "$HERE_SMOKE/../versions.env" 2>/dev/null | head -1)"
+	fi
+	printf '%s' "$cur"
+}
+SMOKE_OWRT_VER="$(ver_from_env OPENWRT_VERSION)"
+SMOKE_KVER="$(ver_from_env OPENWRT_KVER)"
+SMOKE_FWNAME="$(ver_from_env FIRMWARE_NAME)"
+[ -n "$SMOKE_OWRT_VER" ] && [ -n "$SMOKE_KVER" ] && [ -n "$SMOKE_FWNAME" ] \
+	|| die "无法确定版本号（环境变量与 versions.env 都没给）"
+
 # ------------------------------------------------------------------ 依赖检查
 QEMU_BIN="$(command -v qemu-system-x86_64 || true)"
 [ -n "$QEMU_BIN" ] || die "缺少 qemu-system-x86_64，无法冒烟（Debian/Ubuntu: apt install qemu-system-x86）"
@@ -213,11 +232,18 @@ cat > "$WORK/checks.txt" <<'CHECKS'
 #   x = 交给 sh -c 执行（需要 $()、| 、! 等）
 # --- 基础系统 ---
 c|openwrt_release|test -s /etc/openwrt_release
-x|version_25_12_5|grep -q "DISTRIB_RELEASE=.25\.12\.5" /etc/openwrt_release
-x|kernel_6_12_94|test "$(uname -r)" = 6.12.94
-x|hostname|test "$(cat /proc/sys/kernel/hostname)" = cnc1338np12
+x|version_match|grep -qF "DISTRIB_RELEASE='@OPENWRT_VERSION@'" /etc/openwrt_release
+x|kernel_match|test "$(uname -r)" = @KVER@
+x|hostname|test "$(cat /proc/sys/kernel/hostname)" = @FWNAME@
 x|timezone_cst8|test "$(uci -q get system.@system[0].timezone)" = CST-8
 x|ttylogin_off|test "$(uci -q get system.@system[0].ttylogin)" = 0
+# 日志环形缓冲：默认 128 KB 会被 miniupnpd/qBittorrent 的端口映射噪声占掉近三成
+x|log_size_512|test "$(uci -q get system.@system[0].log_size)" = 512
+# ★ 首启收尾脚本"是否成功"的守门员 ★
+# base-files 的 /etc/init.d/boot 是 `( . "./$file" ) && applied="$applied $file"`，
+# 只有退出码为 0 才会删掉它。所以"文件还在"就等于"首启收尾里有失败项"。
+# 没有这条断言时，首启脚本静默失败只表现为"某处配置没生效"，很难定位。
+x|uci_defaults_applied|test ! -e /etc/uci-defaults/99-zz-cnc-defaults
 # --- 网络预置：eth0=WAN(PPPoE,IPv6 auto) / eth1=IPTV / eth2+eth3=br-lan ---
 x|wan_proto_pppoe|test "$(uci -q get network.wan.proto)" = pppoe
 x|wan_device_eth0|test "$(uci -q get network.wan.device)" = eth0
@@ -242,6 +268,10 @@ x|firewall_wan_6_once|test "$(uci -q show firewall | sed -n "s/.*network=//p" | 
 x|dns_aliyun|uci show dhcp | grep -q 223.5.5.5
 x|dns_dnspod|uci show dhcp | grep -q 119.29.29.29
 x|dns_aliyun_once|test "$(uci -q show dhcp | sed -n "s/.*server=//p" | tr " " "\n" | tr -d "'" | grep -cw 223.5.5.5)" = 1
+# dns.msftncsi.com 同时发布 131.107.255.255 与 127.0.0.1，dnsmasq 的 rebind 保护
+# 会对它每次查询都记一条 "possible DNS-rebind attack detected"（实测连查 6 次多 6 条）。
+# 放进 rebind 白名单（--rebind-domain-ok）即可消掉这类刷屏。
+x|rebind_domain_ncsi|uci -q get dhcp.@dnsmasq[0].rebind_domain | grep -qw dns.msftncsi.com
 # --- LuCI：Argon 主题 + 中文 ---
 x|argon_default_theme|test "$(uci -q get luci.main.mediaurlbase)" = /luci-static/argon
 x|argon_lang_zh_cn|test "$(uci -q get luci.main.lang)" = zh_cn
@@ -352,6 +382,14 @@ x|brlan_ipv6_ll|ip -6 -o addr show br-lan | grep -q "scope link"
 x|eth0_not_in_bridge|! ip -o link show eth0 | grep -q "master br-lan"
 x|eth1_not_in_bridge|! ip -o link show eth1 | grep -q "master br-lan"
 CHECKS
+
+# 断言清单用的是"引号 heredoc"（防止断言里的 $() / 引号被提前展开），
+# 所以版本号这类值要靠这里替换进去。
+sed -i \
+	-e "s|@OPENWRT_VERSION@|$SMOKE_OWRT_VER|g" \
+	-e "s|@KVER@|$SMOKE_KVER|g" \
+	-e "s|@FWNAME@|$SMOKE_FWNAME|g" \
+	"$WORK/checks.txt"
 
 cat > "$WORK/driver.py" <<'PYEOF'
 #!/usr/bin/env python3

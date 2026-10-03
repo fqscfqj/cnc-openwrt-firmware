@@ -44,6 +44,13 @@ SDK="$WORK/sdk"
 IB="$WORK/ib"
 OVERLAY="$WORK/overlay"
 JOBS="$(nproc 2>/dev/null || echo 4)"
+BUILT_IMG=""            # stage_image 出的那份镜像；见 resolve_image
+# 本轮构建的**唯一**时间戳：同时写进镜像里的 /etc/cnc-release(BUILT_AT) 与
+# out/latest.json(built_at)。两者必须相等 —— 路由器端 cnc-upgrade 的"检查更新"
+# 就是靠 版本号 + 构建号 + 这个时间戳 三者判断"是不是同一份固件"，
+# 这样"改了内容但忘了升 FIRMWARE_BUILD 的重发"也能被识别出来（否则永远看不到）。
+# ★ 旧版是两处各自取时间（一个在组装前、一个在出图后），差了十几分钟，永远对不上。
+BUILD_STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # ---------------------------------------------------------------- 日志工具
 c_r=$'\033[31m'; c_g=$'\033[32m'; c_y=$'\033[33m'; c_b=$'\033[36m'; c_0=$'\033[0m'
@@ -227,6 +234,35 @@ stage_sources() {
 	ok "feeds 就绪"
 }
 
+# lucky 是唯一一个"由上游 Makefile 自己 wget 预编译运行包"的组件（见 versions.env 说明）：
+# lucky/Makefile 里是 `PKG_HASH:=skip` + Build/Prepare 自己下载
+# lucky_<版本>_Linux_x86_64.tar.gz，解出的 lucky 会被装成 /usr/bin/lucky **以 root 运行**。
+# 也就是说 build.sh 统一传的 PKG_HASH=skip 对它完全无效 —— 不回头校验的话，
+# 它就是这个工程里唯一没有完整性保证的运行载荷。编完后在 SDK 里找出那份 tar.gz 验一次。
+verify_lucky_payload() {
+	local mk="$SDK/gdy666/luci-app-lucky/lucky/Makefile"
+	local ver; ver="$(sed -n 's/^PKG_VERSION:=//p' "$mk" 2>/dev/null | head -1)"
+	[ -n "$ver" ] || die "读不到 lucky 的 PKG_VERSION（$mk 不在？）"
+	[ "$ver" = "$LUCKY_VERSION" ] \
+		|| die "lucky 版本不一致：源码树 PKG_VERSION=$ver，versions.env 的 LUCKY_VERSION=$LUCKY_VERSION（换 LUCKY_COMMIT 时三项要一起改）"
+	# 定位上游 Build/Prepare 下载的那份 tar.gz。分两级找，避免因为 SDK 目录布局
+	# 的细节（build_dir 下的 target-* 名字、架构后缀）把构建搞挂：
+	#   ① 按上游写死的文件名精确找；② 退一步按"lucky-<版本> 目录下的 lucky_*_Linux_*.tar.gz"找。
+	local tar=""
+	tar="$(find "$SDK/build_dir" -name "lucky_${LUCKY_VERSION}_Linux_x86_64.tar.gz" 2>/dev/null | head -1)"
+	[ -n "$tar" ] || tar="$(find "$SDK/build_dir" -path "*lucky-${LUCKY_VERSION}*" \
+		-name "lucky_${LUCKY_VERSION}_Linux_*.tar.gz" 2>/dev/null | head -1)"
+	[ -n "$tar" ] || {
+		warn "在 $SDK/build_dir 下没找到 lucky 的运行包，实际找到的 lucky_* 文件："
+		find "$SDK/build_dir" -name 'lucky_*' 2>/dev/null | sed 's/^/      /' >&2
+		die "找不到 lucky_${LUCKY_VERSION}_Linux_*.tar.gz —— 无法校验 lucky 的运行载荷（上游 Makefile 改了下载方式？见 versions.env 说明）"
+	}
+	local got; got="$(sha256sum "$tar" | cut -d' ' -f1)"
+	[ "$got" = "$LUCKY_TARBALL_SHA256" ] \
+		|| die "lucky 运行包校验和不符：期望 $LUCKY_TARBALL_SHA256，实际 $got（$tar）—— 上游资产变了或被换过，核对后更新 versions.env"
+	ok "lucky 运行包 sha256 校验通过（$(basename "$tar")）"
+}
+
 stage_packages() {
 	stage "packages：用 SDK 编译 7 个包（含 3 个中文语言包）"
 	mkdir -p "$IB/packages"
@@ -248,6 +284,11 @@ stage_packages() {
 		[ -n "$apk" ] || die "$name 没有产出 .apk"
 		cp -f "$apk" "$IB/packages/"
 		ok "$(basename "$apk")"
+
+		# lucky 的运行包要单独回头验一次（见函数上面的说明）
+		if [ "$name" = "lucky" ]; then
+			verify_lucky_payload
+		fi
 
 		# 同一次编译还会产出这个 app 的语言包（见 versions.env 的 SDK_EXTRA_APKS）。
 		# ★漏掉它 = LuCI 页面全是英文★，所以这里找不到就直接构建失败，不静默放过。
@@ -290,6 +331,24 @@ stage_packages() {
 	ok "$want 个 apk 全部就绪"
 }
 
+# 本轮要校验 / 冒烟 / 汇报的镜像。
+#   * stage_image 会把刚出的那份钉进 BUILT_IMG，后面的阶段一律用它；
+#   * 单独跑 verify / smoke 时从 out/ 里取 —— 但**多于一份就拒绝**，不再
+#     `ls | head -1` 猜一个：机器上留了旧图时，猜错就会拿与本次构建无关的镜像
+#     去校验/冒烟/汇报（本工程踩过：out/ 里是 09-30 的旧图，缺 kmod-nft-tproxy）。
+resolve_image() {
+	if [ -n "${BUILT_IMG:-}" ] && [ -f "$BUILT_IMG" ]; then printf '%s' "$BUILT_IMG"; return 0; fi
+	local imgs n
+	imgs="$(find "$OUT" -maxdepth 1 -name '*.img.gz' 2>/dev/null | sort)"
+	n="$(printf '%s\n' "$imgs" | grep -c . || true)"
+	case "$n" in
+		1) printf '%s' "$imgs"; return 0 ;;
+		0) warn "out/ 里没有镜像（先跑 image 阶段）"; return 1 ;;
+		*) warn "out/ 里有 $n 个镜像，无法确定要处理哪一个 —— 请先清理 out/（或只留一份）："
+		   printf '%s\n' "$imgs" | sed 's/^/      /' >&2; return 1 ;;
+	esac
+}
+
 stage_image() {
 	stage "image：组装镜像（ext4-combined-efi）"
 
@@ -310,7 +369,7 @@ KVER=$OPENWRT_KVER
 TARGET=$OPENWRT_TARGET/$OPENWRT_SUBTARGET
 KERNEL_PARTSIZE=$KERNEL_PARTSIZE
 ROOTFS_PARTSIZE=$ROOTFS_PARTSIZE
-BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILT_AT=$BUILD_STAMP
 BUILT_BY=$(if [ -n "${GITHUB_ACTIONS:-}" ]; then echo github-actions; else echo local; fi)
 EOF
 
@@ -411,13 +470,14 @@ PY
 	local outname="openwrt-${OPENWRT_VERSION}-x86-64-${FIRMWARE_NAME}-${FIRMWARE_BUILD}-ext4-combined-efi.img.gz"
 	mkdir -p "$OUT"
 	cp -f "$src" "$OUT/$outname"
+	BUILT_IMG="$OUT/$outname"   # 后续 verify / smoke / 汇报一律用这一份
 	sha256sum "$OUT/$outname" | sed "s| .*/| |" > "$OUT/$outname.sha256"
 	local man; man="$(find "$tdir" -maxdepth 1 -name 'openwrt-*-generic.manifest' | head -1)"
 	[ -n "$man" ] && cp -f "$man" "$OUT/$outname.manifest"
 
 	# ---- latest.json（路由器端比对用）----
 	IMG="$OUT/$outname" FILE="$outname" URL="$RELEASE_BASE_URL/$outname" \
-	OV="$OPENWRT_VERSION" FB="$FIRMWARE_BUILD" KV="$OPENWRT_KVER" \
+	OV="$OPENWRT_VERSION" FB="$FIRMWARE_BUILD" KV="$OPENWRT_KVER" STAMP="$BUILD_STAMP" \
 	python3 - > "$OUT/latest.json" <<'PY'
 import json, os
 p = os.environ['IMG']
@@ -431,25 +491,52 @@ print(json.dumps({
     "url": os.environ['URL'],
     "sha256": __import__('hashlib').sha256(open(p,'rb').read()).hexdigest(),
     "size": os.path.getsize(p),
-    "built_at": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    # ★ 与镜像内 /etc/cnc-release 的 BUILT_AT 同源（见 BUILD_STAMP），不要在这里另取时间
+    "built_at": os.environ['STAMP'],
     "notes": "CncTion 1338NP-12: openclash/lucky/vlmcsd/msd_lite/bandix + argon + wireguard + ipv6, eth0=WAN",
 }, indent=2, ensure_ascii=False))
 PY
 	ok "镜像：out/$outname ($(du -h "$OUT/$outname" | cut -f1))"
 	ok "SHA256：$(cut -d' ' -f1 "$OUT/$outname.sha256")"
+	write_build_env
+}
+
+# 把"本轮实际生效的值"落盘成 out/build.env。
+# CI 的发布步骤读它来打 tag / 写汇总 / 对账 —— 不能读 versions.env，
+# 因为 workflow_dispatch 可以用输入覆盖版本号（否则会出现"镜像是 25.12.7、
+# tag 却是 v25.12.5-r1"，按版本回滚那套机制随之错乱）。
+write_build_env() {
+	mkdir -p "$OUT"
+	local img="" sha="" man=""
+	img="$(resolve_image 2>/dev/null || true)"
+	if [ -n "$img" ]; then
+		if [ -f "$img.sha256" ]; then sha="$(cut -d' ' -f1 < "$img.sha256")"; fi
+		if [ -f "$img.manifest" ]; then man="$(basename "$img.manifest")"; fi
+	fi
+	cat > "$OUT/build.env" <<EOF
+# 本轮构建**实际生效**的值（由 build.sh 生成；CI 据此打 tag / 对账 / 写汇总）
+OPENWRT_VERSION=$OPENWRT_VERSION
+FIRMWARE_BUILD=$FIRMWARE_BUILD
+FIRMWARE_NAME=$FIRMWARE_NAME
+OPENWRT_KVER=$OPENWRT_KVER
+TARGET=$OPENWRT_TARGET/$OPENWRT_SUBTARGET
+RELEASE_REPO=$RELEASE_REPO
+RELEASE_TAG=$RELEASE_TAG
+BUILD_STAMP=$BUILD_STAMP
+IMAGE_FILE=$([ -n "$img" ] && basename "$img" || echo '')
+IMAGE_SHA256=$sha
+MANIFEST_FILE=$man
+EOF
 }
 
 stage_verify() {
 	stage "verify：离线校验"
-	local img; img="$(ls -1 "$OUT"/*.img.gz 2>/dev/null | head -1)"
-	[ -n "$img" ] || die "out/ 里没有镜像"
+	# ★ 必须盯住"本轮刚构建的那份镜像"。旧版用 `ls -1 out/*.img.gz | head -1`，
+	#   机器上只要留了旧图，校验/冒烟/汇报的就可能是与本次构建无关的那一份
+	#   （本工程真的踩过：out/ 里躺着 25.12.5-r1 的旧图，而 smoke-evidence 记的是另一份）。
+	local img; img="$(resolve_image)" || die "无法确定要校验的镜像"
 	# layout-reference.txt 是"跨版本重编后仍能就地升级"的守门员。
-	# 若它是上一次失败运行留下的、尺寸与当前布局常量不符，就先删掉让本轮重建。
-	if [ -f "$HERE/layout-reference.txt" ] && \
-	   ! grep -q "size_mib=$KERNEL_PARTSIZE " "$HERE/layout-reference.txt"; then
-		log "layout-reference.txt 与当前布局常量不符（p1=${KERNEL_PARTSIZE}MiB），重新生成"
-		rm -f "$HERE/layout-reference.txt"
-	fi
+	# ★ 这里**不**再做"不符就删掉重建"——那等于把布局回归洗白（见 verify.sh 里的说明）。
 	local runner=(bash "$HERE/verify.sh" "$img")
 	if [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1; then
 		sudo -E "${runner[@]}" || die "离线校验未通过"
@@ -463,8 +550,9 @@ stage_smoke() {
 	stage "smoke：QEMU 起机冒烟（引导镜像并从串口进系统跑断言）"
 	command -v qemu-system-x86_64 >/dev/null 2>&1 || \
 		warn "没装 qemu-system-x86_64，冒烟会失败（Debian/Ubuntu: apt install qemu-system-x86 ovmf）"
+	local img; img="$(resolve_image)" || die "无法确定要冒烟的镜像"
 	# CNC_QEMU_* 环境变量对脚本可覆盖：工作目录、内存、超时、是否进系统跑断言
-	bash "$HERE/tests/qemu-smoke.sh" "$(ls -1 "$OUT"/*.img.gz | head -1)" || die "QEMU 冒烟未通过"
+	bash "$HERE/tests/qemu-smoke.sh" "$img" || die "QEMU 冒烟未通过"
 }
 
 # =============================================================================
@@ -486,13 +574,15 @@ main() {
 	done
 
 	stage "完成"
-	local img; img="$(ls -1 "$OUT"/*.img.gz 2>/dev/null | head -1)"
+	write_build_env
+	local img; img="$(resolve_image 2>/dev/null)" || img=""
 	[ -n "$img" ] || exit 0
 	cat <<EOF
 产物：
   $img
   $img.sha256
   $OUT/latest.json   ← 发布到 GitHub Release 的 tag '$RELEASE_TAG' 后，路由器即可"网页一键在线升级"
+  $OUT/build.env     ← 本轮**实际生效**的值（CI 据此打 tag / 对账，不要在 CI 里读 versions.env）
 
 刷到路由器（在现有系统上原地刷，无需 U 盘）：
   scp "$img" root@192.168.2.1:/tmp/

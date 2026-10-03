@@ -3,8 +3,29 @@
 #
 # 命名用 99-zz- 前缀，确保在同目录其它 uci-defaults（如 Argon 的
 # 30_luci-theme-argon）之后执行，最后拍板主题与网络相关默认值。
+#
+# ★ 失败语义（2026-10 改）★
+# base-files 的 /etc/init.d/boot 只在脚本**退出码为 0** 时才删掉本文件：
+#     ( . "./$file" ) && applied="$applied $file"
+# 所以本脚本改成"有任何一项没做成 → 记 syslog + 非 0 退出"，把文件留下、
+# 下次开机重试（本脚本幂等，重复执行不会产生重复条目）。
+# 旧版无条件 exit 0 ⇒ 任何一次静默失败（firewall 还没生成、uci add 失败、
+# root 密码没写进去）都会变成**永久**失败，而且系统里不留任何痕迹。
+# 如果你有意改了配置（例如把 wan zone 改名）而想让它别再重试，
+# 手动 `rm /etc/uci-defaults/99-zz-cnc-defaults` 即可。
 
 . /lib/functions.sh
+
+# ------------------------------------------------------------------ 失败收集
+FAILED_N=0
+FAILED_LIST=""
+fail() {
+	FAILED_N=$((FAILED_N + 1))
+	FAILED_LIST="$FAILED_LIST
+    - $*"
+	logger -t cnc-defaults "ERROR: $*"
+	printf 'cnc-defaults: %s\n' "$*" >&2
+}
 
 # ------------------------------------------------------------------ 防火墙
 # PPPoE 的 IPv6 动态接口名为 wan_6：由 ppp 包的 /lib/netifd/ppp6-up 通过
@@ -33,8 +54,13 @@ if [ -n "$wanzone" ]; then
 	for net in wan6 wan_6; do
 		uci -q get "$wanzone.network" | grep -qw "$net" || uci add_list "$wanzone.network=$net"
 	done
+	# 后置校验：uci add_list 失败时不会报错，只有回头查一遍才知道到底写上没有
+	for net in wan6 wan_6; do
+		uci -q get "$wanzone.network" | grep -qw "$net" \
+			|| fail "wan zone($wanzone) 里没登记 $net —— IPv6 动态接口会被 zone 的 input REJECT 挡掉"
+	done
 else
-	logger -t cnc-defaults "找不到名为 wan 的 firewall zone，跳过 wan6/wan_6 登记"
+	fail "找不到名为 wan 的 firewall zone —— wan6/wan_6 无法登记，IPv6 会被整条挡掉"
 fi
 
 # ------------------------------------------------------------------ IPTV（eth1）
@@ -98,6 +124,14 @@ add_iptv_rule() { # <name> <proto> [dest_ip]
 add_iptv_rule 'Allow-IGMP-IPTV' 'igmp'
 add_iptv_rule 'Allow-IPTV-Multicast' 'udp' '224.0.0.0/4'
 
+# 后置校验：三条都少不得，缺任何一条干净刷机后 IPTV 都会以
+# "msd_lite 返回 HTTP 503、一个字节都收不到"的形式哑掉（见手册 §7.7）
+[ -n "$iptvzone" ] || fail "iptv firewall zone 没建起来"
+uci -q get "$iptvzone.network" | grep -qw iptv || fail "iptv zone 里没登记 iptv 接口"
+for _r in Allow-IGMP-IPTV Allow-IPTV-Multicast; do
+	uci -q show firewall | grep -q "\.name='$_r'" || fail "IPTV 放行规则 $_r 没建起来"
+done
+
 # msd_lite：把 IPTV 口的组播转成单播 HTTP。端口 4022 与 udpxy 默认端口一致，
 # 常见公共 m3u 模板（形如 http://<路由器>:4022/udp/<组播组>:<端口>）直接可用。
 # 它只监听局域网侧：iptv zone 是 input REJECT、wan zone 也是 REJECT，都到不了它。
@@ -107,7 +141,14 @@ if [ -f /etc/config/msd_lite ]; then
 	uci set msd_lite.@instance[0].address='0.0.0.0:4022'
 	uci set msd_lite.@instance[0].network='iptv'
 	uci commit msd_lite
+	[ "$(uci -q get msd_lite.@instance[0].enabled)" = "1" ] \
+		&& [ "$(uci -q get msd_lite.@instance[0].network)" = "iptv" ] \
+		|| fail "msd_lite 配置没落上（enabled / network 不对）"
 	logger -t cnc-defaults "msd_lite 已配置：0.0.0.0:4022，组播收在 iptv 口"
+elif [ -x /etc/init.d/msd_lite ]; then
+	fail "msd_lite 已安装但缺少 /etc/config/msd_lite —— IPTV 组播转单播不可用"
+else
+	logger -t cnc-defaults "未安装 msd_lite，跳过 IPTV 组播转单播配置"
 fi
 
 # ------------------------------------------------------------------ DNS 上游
@@ -116,6 +157,18 @@ if uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
 	for dns in 223.5.5.5 119.29.29.29; do
 		uci -q get dhcp.@dnsmasq[0].server | grep -qw "$dns" || uci add_list dhcp.@dnsmasq[0].server="$dns"
 	done
+	for dns in 223.5.5.5 119.29.29.29; do
+		uci -q get dhcp.@dnsmasq[0].server | grep -qw "$dns" || fail "dnsmasq 上游 $dns 没写上"
+	done
+	# ★ 消掉一类刷屏告警：dns.msftncsi.com（Windows 联网探测用）同时发布
+	#   131.107.255.255 和 127.0.0.1，dnsmasq 的 rebind 保护看到私网地址就
+	#   每次查询都记一条 "possible DNS-rebind attack detected"。
+	#   真机实测：连查 6 次就多 6 条告警，而答案仍正常返回（客户端拿到
+	#   131.107.255.255）⇒ 纯噪声。加进 rebind 白名单即可。
+	uci -q get dhcp.@dnsmasq[0].rebind_domain | grep -qw dns.msftncsi.com \
+		|| uci add_list dhcp.@dnsmasq[0].rebind_domain='dns.msftncsi.com'
+else
+	fail "找不到 dhcp.@dnsmasq[0] —— dnsmasq 配置异常，DNS 上游与 rebind 白名单都没配上"
 fi
 
 # ------------------------------------------------------------------ IPv6 服务端
@@ -135,24 +188,45 @@ if [ -e /proc/sys/net/ipv6 ]; then
 	uci -q delete dhcp.lan.ra_flags
 	uci add_list dhcp.lan.ra_flags=managed-config
 	uci add_list dhcp.lan.ra_flags=other-config
+	[ "$(uci -q get dhcp.lan.dhcpv6)" = "server" ] && [ "$(uci -q get dhcp.lan.ra)" = "server" ] \
+		|| fail "dhcp.lan 的 dhcpv6 / ra 没落成 server —— 局域网 IPv6 会静默失效"
 fi
 
 # ------------------------------------------------------------------ 默认主题
 # 覆盖层里已写好，这里再拍板一次，防止上游 uci-defaults 抢改。
 uci set luci.themes.Argon=/luci-static/argon
 uci set luci.main.mediaurlbase=/luci-static/argon
+[ "$(uci -q get luci.main.mediaurlbase)" = "/luci-static/argon" ] \
+	|| fail "LuCI 默认主题没落到 argon"
 
 # ------------------------------------------------------------------ root 密码
 # 只有构建时 BAKE_SECRETS=1 才会带入 /etc/cnc-root-hash（SHA-512 crypt），
 # 写入 /etc/shadow 后立即删除该文件，不留在系统里。
+# ★ 必须先确认写进去了再删源文件：否则 sed 一旦失败，/etc/shadow 里是无密码的
+#   root，而源文件已经没了 —— 操作者还以为 BAKE_SECRETS 生效了。
 if [ -s /etc/cnc-root-hash ]; then
 	hash="$(cat /etc/cnc-root-hash)"
 	sed -i "s|^root:[^:]*:|root:${hash}:|" /etc/shadow
-	rm -f /etc/cnc-root-hash
+	# 逐字段比对（不能用 grep 匹配整行：SHA-512 crypt 里含 $，在正则里是行尾锚点）
+	if [ "$(awk -F: '$1=="root"{print $2}' /etc/shadow)" = "$hash" ]; then
+		rm -f /etc/cnc-root-hash
+		logger -t cnc-defaults "root 密码哈希已写入 /etc/shadow"
+	else
+		fail "root 密码写入 /etc/shadow 失败（保留 /etc/cnc-root-hash，下次开机重试）"
+	fi
 fi
 
-uci -q commit firewall
-uci -q commit dhcp
-uci -q commit luci
+uci -q commit firewall || fail "uci commit firewall 失败"
+uci -q commit dhcp     || fail "uci commit dhcp 失败"
+uci -q commit luci     || fail "uci commit luci 失败"
 
+# ------------------------------------------------------------------ 结果
+# 有失败就非 0 退出 ⇒ base-files 会保留本文件，下次开机重试（见文件头说明）
+if [ "$FAILED_N" -gt 0 ]; then
+	logger -t cnc-defaults "首启收尾有 $FAILED_N 项失败，保留本脚本以便下次开机重试"
+	printf 'cnc-defaults: %d 项失败，保留 /etc/uci-defaults/99-zz-cnc-defaults 以便下次开机重试：%s\n' \
+		"$FAILED_N" "$FAILED_LIST" >&2
+	exit 1
+fi
+logger -t cnc-defaults "首启收尾全部完成"
 exit 0

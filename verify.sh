@@ -35,8 +35,12 @@ ok()  { PASS=$((PASS+1)); printf '  %s✔%s %s\n' "$c_g" "$c_0" "$*"; }
 bad() { FAIL=$((FAIL+1)); FAILED+=("$*"); printf '  %s✘ %s%s\n' "$c_r" "$*" "$c_0"; }
 sec() { printf '\n%s── %s%s\n' "$c_b" "$*" "$c_0"; }
 
-WORKBASE="${CNC_VERIFY_WORK:-$(dirname "$(readlink -f "$IMG")")}"
-[ -w "$WORKBASE" ] || WORKBASE="$(dirname "$(readlink -f "$IMG")")"
+WORKBASE="${CNC_VERIFY_WORK:-}"
+if [ -z "$WORKBASE" ] || [ ! -d "$WORKBASE" ] || [ ! -w "$WORKBASE" ]; then
+	[ -n "$WORKBASE" ] && echo "提示：$WORKBASE 不存在或不可写，改用镜像所在目录"
+	WORKBASE="$(dirname "$(readlink -f "$IMG")")"
+fi
+[ -w "$WORKBASE" ] || { echo "镜像所在目录不可写，无法解压镜像：$WORKBASE"; exit 1; }
 WORKTMP="$(mktemp -d "$WORKBASE/.verify.XXXXXX")" \
 	|| { echo "无法在 $WORKBASE 创建临时目录"; exit 1; }
 MNT1="$WORKTMP/esp"; MNT2="$WORKTMP/root"
@@ -111,34 +115,44 @@ cat "$WORKTMP/layout.txt" | sed 's/^/    /'
 #   ② 两项尺寸必须等于 versions.env 的常量（否则以后升级会整盘覆写）；
 #   ③ 必须存在 BIOS boot 项（保住 Legacy 引导能力）；
 #   ④ 分区总数必须是 3。
-awk -v k="$KERNEL_PARTSIZE" -v r="$ROOTFS_PARTSIZE" '
+# ★ 这里必须用进程替换（read ... < <(awk ...)）而不是管道。
+#   写成 `awk ... | { read ...; ok/bad ... }` 的话，{ } 是管道的最后一段、跑在
+#   子 shell 里，ok/bad 对 PASS/FAIL/FAILED 的修改**全部丢失** —— 结果是这 4 条
+#   断言全挂也照样打印"镜像校验全部通过，可以刷机"并 exit 0（2026-10 实测复现）。
+read -r ek er bb c < <(awk -v k="$KERNEL_PARTSIZE" -v r="$ROOTFS_PARTSIZE" '
 	$1=="entry1" && $3=="size_mib="k { ek=1 }
 	$1=="entry2" && $3=="size_mib="r { er=1 }
 	$4=="type=BIOSboot" { bb=1 }
 	/^#count=3$/ { c=1 }
 	END { printf "%d %d %d %d\n", ek+0, er+0, bb+0, c+0 }
-' "$WORKTMP/layout.txt" | {
-	read -r ek er bb c
-	[ "$ek" = 1 ] && ok "entry1 = ${KERNEL_PARTSIZE} MiB 引导分区（ESP）" \
-		|| bad "entry1 不是 ${KERNEL_PARTSIZE} MiB 的引导分区（分区顺序或尺寸不对）"
-	[ "$er" = 1 ] && ok "entry2 = ${ROOTFS_PARTSIZE} MiB rootfs（升级时靠第 2 项改写 root=PARTUUID）" \
-		|| bad "entry2 不是 ${ROOTFS_PARTSIZE} MiB 的 rootfs"
-	[ "$bb" = 1 ] && ok "存在 BIOS boot 分区（保留 Legacy 引导能力）" || bad "缺少 BIOS boot 分区"
-	[ "$c" = 1 ] && ok "分区数量 = 3（与官方 combined-efi 布局一致）" || bad "分区数量不是 3"
-}
+' "$WORKTMP/layout.txt")
+[ "$ek" = 1 ] && ok "entry1 = ${KERNEL_PARTSIZE} MiB 引导分区（ESP）" \
+	|| bad "entry1 不是 ${KERNEL_PARTSIZE} MiB 的引导分区（分区顺序或尺寸不对）"
+[ "$er" = 1 ] && ok "entry2 = ${ROOTFS_PARTSIZE} MiB rootfs（升级时靠第 2 项改写 root=PARTUUID）" \
+	|| bad "entry2 不是 ${ROOTFS_PARTSIZE} MiB 的 rootfs"
+[ "$bb" = 1 ] && ok "存在 BIOS boot 分区（保留 Legacy 引导能力）" || bad "缺少 BIOS boot 分区"
+[ "$c" = 1 ] && ok "分区数量 = 3（与官方 combined-efi 布局一致）" || bad "分区数量不是 3"
 
 # 与参考布局比对（保证"改版本号重编"后仍能就地升级）
+# ★ layout-reference.txt 是纳入版本控制的"基线"，**绝不能自动重设**：
+#   脚本一旦在比对失败时悄悄把基线改成新布局，就等于把"以后每次升级都整盘覆写"
+#   这个回归洗白了（而整盘覆写会丢掉镜像里没有的分区）。所以：
+#     * 基线缺失  → 直接判失败（除非显式 CNC_BOOTSTRAP_LAYOUT=1 建立首次基线）
+#     * 基线不一致 → 判失败，并让人工决定是改回去还是有意重设基线
 cp -f "$WORKTMP/layout.txt" "${IMG%.img.gz}.layout.txt"
-if [ -f "$HERE/layout-reference.txt" ]; then
-	if diff -q <(grep '^entry' "$HERE/layout-reference.txt") <(grep '^entry' "$WORKTMP/layout.txt") >/dev/null; then
-		ok "分区表与 layout-reference.txt 逐行一致（升级可就地写入，不整盘覆写）"
+if [ ! -f "$HERE/layout-reference.txt" ]; then
+	if [ "${CNC_BOOTSTRAP_LAYOUT:-0}" = "1" ]; then
+		cp -f "$WORKTMP/layout.txt" "$HERE/layout-reference.txt"
+		echo "  (CNC_BOOTSTRAP_LAYOUT=1：已生成 $HERE/layout-reference.txt，请 review 后纳入版本控制)"
+		ok "已建立分区布局基线（首次引导）"
 	else
-		bad "分区表与 layout-reference.txt 不一致 —— 改过 KERNEL_PARTSIZE/ROOTFS_PARTSIZE？这会让后续 sysupgrade 整盘覆写"
-		diff <(grep '^entry' "$HERE/layout-reference.txt") <(grep '^entry' "$WORKTMP/layout.txt") | sed 's/^/      /'
+		bad "缺少 layout-reference.txt（分区布局基线）—— 它是'升级能就地写入'的守门员，必须纳入版本控制；确需重建请显式用 CNC_BOOTSTRAP_LAYOUT=1"
 	fi
+elif diff -q <(grep '^entry' "$HERE/layout-reference.txt") <(grep '^entry' "$WORKTMP/layout.txt") >/dev/null; then
+	ok "分区表与 layout-reference.txt 逐行一致（升级可就地写入，不整盘覆写）"
 else
-	echo "  (首次运行：已生成 $HERE/layout-reference.txt，请 review 后纳入版本控制)"
-	cp -f "$WORKTMP/layout.txt" "$HERE/layout-reference.txt"
+	bad "分区表与 layout-reference.txt 不一致 —— 改过 KERNEL_PARTSIZE/ROOTFS_PARTSIZE？这会让后续 sysupgrade 整盘覆写（镜像里没有的分区会丢）"
+	diff <(grep '^entry' "$HERE/layout-reference.txt") <(grep '^entry' "$WORKTMP/layout.txt") | sed 's/^/      /'
 fi
 
 if [ -n "$IMG2" ] && [ -f "$IMG2" ]; then
@@ -333,7 +347,32 @@ fi
 sec "rootfs：升级保留与在线升级"
 grep -q '^/etc/openclash$' "$MNT2/lib/upgrade/keep.d/99-cnc-plugins" 2>/dev/null \
 	&& ok "keep.d 登记了 /etc/openclash（升级不丢订阅与规则）" || bad "keep.d 缺少 /etc/openclash"
+grep -q '^/etc/config/lucky.daji$' "$MNT2/lib/upgrade/keep.d/99-cnc-plugins" 2>/dev/null \
+	&& ok "keep.d 登记了 /etc/config/lucky.daji（Lucky 配置）" \
+	|| bad "keep.d 缺少 /etc/config/lucky.daji —— 升级后 Lucky 配置会丢"
 [ -f "$MNT2/etc/sysupgrade.conf" ] && ok "存在 /etc/sysupgrade.conf" || bad "缺少 /etc/sysupgrade.conf"
+# 下面四条是"别把守卫删了"的哨兵。它们守的是升级链路上几个**静默**失效点：
+#   * 备份超过引导分区 → 上游 platform_copy_config 不检查 cp 失败 → 配置静默丢失
+#   * 分区布局变了     → sysupgrade 整盘覆写，但 --test 仍返回 0 → 只看返回码挡不住
+#   * 远端 file 字段   → 被当路径用（可穿出暂存目录）
+# 离线校验看不到运行时数据，所以这里只断言"脚本里确实还有这几段逻辑"，
+# 真正生效由 tests/run.sh 的单测与真机升级验证（见手册 §7）。
+CNC_UP="$MNT2/usr/sbin/cnc-upgrade"
+if [ -f "$CNC_UP" ]; then
+	grep -q 'check_backup_budget' "$CNC_UP" \
+		&& ok "在线升级含「备份体积预算」守卫（防配置静默丢失）" \
+		|| bad "cnc-upgrade 缺少备份体积预算守卫 —— 备份超引导分区时会静默丢配置"
+	grep -q 'Partition layout has changed' "$CNC_UP" \
+		&& ok "在线升级会在刷写前拦分区布局变化（防整盘覆写）" \
+		|| bad "cnc-upgrade 缺少分区布局拦截 —— 布局一变就会整盘覆写且无提示"
+	grep -q 'valid_file_name' "$CNC_UP" \
+		&& ok "在线升级校验 latest.json 的 file 字段（防目录穿越）" \
+		|| bad "cnc-upgrade 没校验 file 字段 —— 远端可借 ../ 删文件或替换镜像"
+	grep -q 'acquire_lock' "$CNC_UP" \
+		&& ok "在线升级有单实例锁（防并发写盘）" || bad "cnc-upgrade 缺少单实例锁"
+else
+	bad "缺少 /usr/sbin/cnc-upgrade"
+fi
 if [ -f "$MNT2/etc/cnc-release" ]; then
 	ok "存在 /etc/cnc-release：$(tr '\n' ' ' < "$MNT2/etc/cnc-release" | cut -c1-80)…"
 	grep -q "^FIRMWARE_BUILD=$FIRMWARE_BUILD$" "$MNT2/etc/cnc-release" \

@@ -22,7 +22,14 @@ function callCmd(cmd) {
 		if (res.code !== 0 || !parsed || parsed.ok !== true) {
 			var msg = (res.stderr || '').trim() || out ||
 				_('命令执行失败（exit %d）').format(res.code);
-			throw new Error(msg);
+			var err = new Error(msg);
+			/* ★ 区分"脚本明确拒绝"与"设备重启把连接切断了" ★
+			 * 脚本拒绝时（例如分区布局会整盘覆写、备份超出引导分区），它会先在
+			 * stderr 里说明原因再以非 0 退出 —— 这种必须弹给用户看。
+			 * 而刷写成功后设备立刻重启，连接会断（没有 stderr、拿不到 JSON），
+			 * 那种失败是正常的，不能报错。 */
+			err.cncRefused = true;
+			throw err;
 		}
 
 		return parsed;
@@ -107,7 +114,17 @@ return view.extend({
 						ui.showModal(_('正在刷写'), [
 							E('p', { 'class': 'spinning' }, _('正在写入固件，设备即将重启，请不要关闭电源…'))
 						]);
-						callCmd('flash').catch(function() { /* 设备重启会导致连接中断，属正常 */ });
+						callCmd('flash').then(function() {
+							/* 正常情况走不到这里：sysupgrade 一开始写盘，连接就断了 */
+						}, function(e) {
+							if (e && e.cncRefused) {
+								/* 脚本拒绝了这次刷写（布局不一致 / 备份超预算 / 镜像不合格），
+								 * 把原因原样显示出来 —— 否则用户只会看到"点了没反应"。 */
+								ui.hideModal();
+								ui.addNotification(null, E('p', {}, e.message), 'error');
+							}
+							/* 没有 cncRefused 的失败 = 设备正在重启、连接被切断，属正常 */
+						});
 					}
 				}, _('开始刷写'))
 			])

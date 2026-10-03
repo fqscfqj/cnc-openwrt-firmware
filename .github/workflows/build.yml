@@ -1,7 +1,7 @@
 name: build-firmware
 
 # =============================================================================
-# CncTion 1338NP-12 固件：构建 → 离线校验 → 发布
+# CncTion 1338NP-12 固件：构建 → 离线校验 → 冒烟 → 发布
 #
 # 产物发布在两个 Release 上：
 #   * 滚动 Release（tag = versions.env 的 RELEASE_TAG，默认 firmware-latest）
@@ -9,8 +9,18 @@ name: build-firmware
 #     读取的 URL 永久不变。
 #   * 按版本 Release（tag 形如 v25.12.5-r1）⇒ 便于回滚到任意旧版本。
 #
+# ★ 发布门禁（2026-10 加）★
+# 推送到 main 的构建**一律**跑 QEMU 冒烟，并且发布步骤前置了一道"必须有通过的
+# 冒烟证据"的检查。原因：离线校验（verify.sh）看不到"进系统跑完 uci-defaults
+# 之后的配置"，而本工程历史上抓到的真 bug（wan_6 没进 zone、add_list 重复、
+# IPTV 503、tproxy 静默降级）全都是只有起机才暴露的类型。此前冒烟是手动勾选项、
+# 默认关闭，于是"发布出去的镜像从没起过机"是可能的（也确实发生过）。
+# 手动触发时可以用 run_smoke=false 关掉（例如只为调试构建），但那样流水线会在
+# 发布门禁那一步**失败**，不会把未经冒烟的镜像推到 firmware-latest。
+#
 # 手动触发时可覆盖 OpenWrt 版本与固件构建号，例如升级到 25.12.7：
 #   Actions → build-firmware → Run workflow → openwrt_version=25.12.7, firmware_build=r2
+#   （tag 与汇总用的是 build.sh 实际生效的值，见下方 meta 步骤）
 # =============================================================================
 
 on:
@@ -25,9 +35,9 @@ on:
         required: false
         default: ''
       run_smoke:
-        description: '跑 QEMU 冒烟测试（慢，约 5–15 分钟）'
+        description: '跑 QEMU 冒烟测试（约 5–15 分钟）。★推送到 main 时强制开启★'
         type: boolean
-        default: false
+        default: true
   push:
     branches: [ main ]
     paths:
@@ -49,7 +59,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
+    env:
+      # push → 一律冒烟；workflow_dispatch → 听输入（默认 true）
+      RUN_QEMU_SMOKE: ${{ github.event_name == 'workflow_dispatch' && (inputs.run_smoke && '1' || '0') || '1' }}
 
     steps:
       - name: 检出
@@ -64,8 +77,8 @@ jobs:
           # 说明：getopt / losetup / blkid / mount 在 Debian/Ubuntu 上由 util-linux 提供
           #（没有独立的 getopt 包，写了会 apt 失败）；dosfstools、parted 为可选。
 
-      - name: 安装 QEMU（仅勾选冒烟时）
-        if: ${{ inputs.run_smoke }}
+      - name: 安装 QEMU（冒烟开启时）
+        if: env.RUN_QEMU_SMOKE == '1'
         run: |
           sudo apt-get install -y --no-install-recommends qemu-system-x86 ovmf
           qemu-system-x86_64 --version | head -1
@@ -81,11 +94,10 @@ jobs:
       - name: 单元测试（cnc-upgrade 升级逻辑）
         run: bash tests/run.sh
 
-      - name: 构建固件（含离线校验）
+      - name: 构建固件（含离线校验 + QEMU 冒烟）
         env:
           OPENWRT_VERSION: ${{ inputs.openwrt_version }}
           FIRMWARE_BUILD: ${{ inputs.firmware_build }}
-          RUN_QEMU_SMOKE: ${{ inputs.run_smoke && '1' || '0' }}
           # 离线校验要把镜像解压成约 4.2 GB：放到 runner 的大分区上，避免根分区吃紧
           CNC_VERIFY_WORK: /mnt
         run: bash build.sh
@@ -93,9 +105,21 @@ jobs:
       - name: 读取构建结果
         id: meta
         run: |
-          . ./versions.env
+          set -e
+          # ★ 用 build.sh 实际生效的值，而不是 versions.env ★
+          # workflow_dispatch 可以用输入覆盖版本号；若这里 . ./versions.env，
+          # 就会出现"镜像是 25.12.7、Release 的 tag 却是 v25.12.5-r1"，
+          # 按版本回滚的那套机制随之错乱。
+          [ -s out/build.env ] || { echo "::error::缺少 out/build.env（build.sh 没跑完？）"; exit 1; }
+          . ./out/build.env
           echo "tag=v${OPENWRT_VERSION}-${FIRMWARE_BUILD}" >> "$GITHUB_OUTPUT"
           echo "rolling=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha256=$IMAGE_SHA256" >> "$GITHUB_OUTPUT"
+          echo "artifact=${IMAGE_FILE}" >> "$GITHUB_OUTPUT"
+          # 再对一次账：latest.json（路由器读的那份）必须与 build.env 完全一致
+          got="$(python3 -c 'import json;d=json.load(open("out/latest.json"));print(d["openwrt_version"],d["firmware_build"],d["sha256"],d["size"])')"
+          want="$OPENWRT_VERSION $FIRMWARE_BUILD $IMAGE_SHA256 $(wc -c < "out/$IMAGE_FILE" | tr -d ' ')"
+          [ "$got" = "$want" ] || { echo "::error::out/latest.json 与 build.env 不一致：[$got] vs [$want]"; exit 1; }
 
       - name: 上传构建产物（保留 90 天）
         uses: actions/upload-artifact@v4
@@ -107,9 +131,10 @@ jobs:
             out/*.manifest
             out/*.layout.txt
             out/latest.json
+            out/build.env
           retention-days: 90
 
-      - name: 上传 QEMU 冒烟证据（勾选冒烟时才有）
+      - name: 上传 QEMU 冒烟证据
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -118,8 +143,25 @@ jobs:
             out/qemu-smoke-serial.log
             out/qemu-smoke-results.txt
             out/qemu-smoke-system-info.txt
-          retention-days: 30
+          retention-days: 90
           if-no-files-found: ignore
+
+      - name: 发布门禁（没有通过的冒烟证据就不许发布）
+        run: |
+          set -e
+          f=out/qemu-smoke-results.txt
+          [ -s "$f" ] || {
+            echo "::error::缺少 $f —— 未经 QEMU 冒烟的镜像不允许进入 firmware-latest（见本文件顶部说明）"
+            exit 1
+          }
+          p="$(sed -n 's/^checks_pass=//p'    "$f" | head -1)"
+          q="$(sed -n 's/^checks_fail=//p'    "$f" | head -1)"
+          t="$(sed -n 's/^checks_timeout=//p' "$f" | head -1)"
+          echo "冒烟结果：通过 ${p:-?} / 失败 ${q:-?} / 超时 ${t:-?}"
+          [ "${q:-1}" = "0" ] && [ "${t:-1}" = "0" ] && [ "${p:-0}" -gt 0 ] || {
+            echo "::error::冒烟有失败/超时项（或通过项为 0），拒绝发布"
+            exit 1
+          }
 
       - name: 发布到滚动 Release（latest.json 地址永久不变）
         env:
@@ -130,7 +172,8 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --title "最新固件（滚动更新）" \
-              --notes "本 Release 的资产会被每次构建覆盖。latest.json 的下载地址固定不变，路由器『固件在线升级』页面读的就是它。"
+              --notes "本 Release 的资产会被每次构建覆盖。latest.json 的下载地址固定不变，路由器『固件在线升级』页面读的就是它。" \
+              --notes "★ 每次覆盖前都必须通过 QEMU 冒烟（见 workflow『发布门禁』步骤）。"
           fi
           gh release upload "$TAG" \
             out/*.img.gz out/*.sha256 out/*.manifest out/latest.json \
@@ -153,17 +196,24 @@ jobs:
 
       - name: 汇总
         run: |
+          f=out/qemu-smoke-results.txt
+          if [ -s "$f" ]; then
+            smoke="通过 $(sed -n 's/^checks_pass=//p' "$f" | head -1) / 失败 $(sed -n 's/^checks_fail=//p' "$f" | head -1) / 超时 $(sed -n 's/^checks_timeout=//p' "$f" | head -1)（证据见 qemu-smoke artifact）"
+          else
+            smoke="未运行（★ 发布门禁会因此拦下 ★）"
+          fi
           {
             echo "## 固件构建完成"
             echo
             echo "| 项 | 值 |"
             echo "|---|---|"
             echo "| 版本 | ${{ steps.meta.outputs.tag }} |"
-            echo "| 镜像 | $(basename "$(ls out/*.img.gz | head -1)") |"
-            echo "| SHA256 | \`$(cut -d' ' -f1 out/*.sha256 | head -1)\` |"
+            echo "| 镜像 | ${{ steps.meta.outputs.artifact }} |"
+            echo "| SHA256 | \`${{ steps.meta.outputs.sha256 }}\` |"
             echo "| 滚动 Release | ${{ steps.meta.outputs.rolling }} |"
             echo "| 离线校验 | 全部通过（见构建日志） |"
-            echo "| QEMU 冒烟 | ${{ inputs.run_smoke && '已运行，证据见 qemu-smoke artifact' || '未运行' }} |"
+            echo "| QEMU 冒烟 | $smoke |"
             echo
             echo "路由器上升级：LuCI → 系统 → **固件在线升级** → 检查更新 → 下载并校验 → 刷写并重启"
           } >> "$GITHUB_STEP_SUMMARY"
+
