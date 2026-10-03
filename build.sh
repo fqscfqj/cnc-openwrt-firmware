@@ -195,6 +195,10 @@ stage_sources() {
 				"$SDK/package/$name/Makefile"
 		fi
 	done <<< "$SDK_PACKAGES"
+	# lucky 的运行载荷是上游自己 wget 的预编译 tar.gz（PKG_HASH 对它无效），
+	# 这里把那份 Makefile 的 Build/Prepare 接管掉、植入 sha256 校验（见函数说明）。
+	# 必须在编译之前、且包已经复制进 SDK/package/ 之后做。
+	patch_lucky_makefile
 	ok "已放入 SDK：$(echo "$SDK_PACKAGES" | tr -d ' ' | awk -F'|' 'NF{printf "%s ",$1}')"
 
 	# LuCI 应用需要 feeds/luci/luci.mk：默认 feeds 用的是 25.12.5 发布时钉住的 commit
@@ -234,48 +238,76 @@ stage_sources() {
 	ok "feeds 就绪"
 }
 
-# lucky 是唯一一个"由上游 Makefile 自己 wget 预编译运行包"的组件（见 versions.env 说明）：
-# lucky/Makefile 里是 `PKG_HASH:=skip` + Build/Prepare 自己下载
-# lucky_<版本>_Linux_x86_64.tar.gz，解出的 lucky 会被装成 /usr/bin/lucky **以 root 运行**。
-# 也就是说 build.sh 统一传的 PKG_HASH=skip 对它完全无效 —— 不回头校验的话，
-# 它就是这个工程里唯一没有完整性保证的运行载荷。编完后在 SDK 里找出那份 tar.gz 验一次。
-verify_lucky_payload() {
-	# ★ 路径取自 stage_sources：`cp -a pkgs/winsrc/<path> $SDK/package/<name>`，
-	#   所以 SDK 里两份副本分别是 package/lucky 与 package/luci-app-lucky，
-	#   要读的是**被编译的那一份**（package/lucky/Makefile），不是 clone 目录。
+# ---------------------------------------------------------- lucky 运行载荷的校验
+# lucky 是唯一一个"由上游 Makefile 自己 wget 预编译运行包"的组件（见 versions.env）：
+# 上游 lucky/Makefile 是 `PKG_HASH:=skip` + 自己在 Build/Prepare 里
+#     wget … /lucky_<版本>_Linux_x86_64.tar.gz -O $(PKG_BUILD_DIR)/…
+#     tar -xzvf … -C $(PKG_BUILD_DIR)
+# 解出来的 lucky 会被装成 /usr/bin/lucky **以 root 运行**。build.sh 统一传的
+# PKG_HASH=skip 对它完全无效（上游根本不看 PKG_HASH）⇒ 不额外处理的话，它就是全工程
+# 唯一一个没有任何完整性校验的运行载荷。
+#
+# ★ 为什么只能在 make 内部校验（2026-10-03 两次 CI 失败换来的结论，两条路都堵死）★
+#   * "编完再去 SDK 里找那份 tar.gz 验一遍" —— 不行：SDK 默认 CONFIG_AUTOREMOVE，
+#     package.mk 在 PKG_BUILD_DIR 里放 .autoremove，随后的 clean-build 把**整个
+#     build_dir 删掉**。实测：编完 lucky 后在整个 $SDK 下连一份 lucky_*.tar.gz 都找不到
+#     （run #14 的日志就是这句 "在 SDK 里没找到 lucky 的运行包"）。
+#   * "先把校验过的 tar.gz 预置进 PKG_BUILD_DIR，让上游那句 [ ! -f ] && wget 跳过" ——
+#     也不行：package.mk 的 $(STAMP_PREPARED) 配方**第一件事就是
+#     `@-rm -rf $(PKG_BUILD_DIR)`**，预置的文件在 Build/Prepare 之前就被删了。
+#   ⇒ 唯一有效的位置：Build/Prepare 里、解包之前。
+#
+# 做法：往 $SDK/package/lucky/Makefile **追加**一个同名 define（make 里
+# `define X … endef` 等价于一次 `X = …` 赋值，后定义的生效；而 package.mk 是在配方
+# **运行时**才展开 $(Build/Prepare) 的，所以追加在文件末尾即可整体接管）。
+# 校验和通过 make 命令行变量 LUCKY_TARBALL_SHA256 传入。
+# 追加之后还有 check_lucky_verified 去编译日志里核对"这段校验真的跑过"，
+# 万一 make 语义或上游结构变了，会**明确失败**而不是静默放过。
+patch_lucky_makefile() {
 	local mk="$SDK/package/lucky/Makefile"
 	[ -f "$mk" ] || die "找不到 lucky 的 Makefile：$mk（源码树布局变了？见 stage_sources）"
-	# ★ 注意别写成 `ver="$(sed … | head -1 || true)"` 就完事：本脚本是 set -euo pipefail，
-	#   sed 读不到文件会返回 2，pipefail 会把它传成整条管道的状态，于是 set -e
-	#   当场终止脚本 —— 而 `2>/dev/null` 又把 sed 的原因吞掉了，结果就是
-	#   **零输出、退出码 2 的静默失败**（2026-10-03 CI run #13 就是这么挂的）。
-	#   所以：先 [ -f ] 判存在、再给管道兜 `|| true`。
+	# 版本号核对：换了 LUCKY_COMMIT 却忘了同步 LUCKY_VERSION / SHA256 时给出明确提示。
+	# ★ 注意别写成 `ver="$(sed … | head -1)"` 就完事：本脚本是 set -euo pipefail，
+	#   sed 读不到文件返回 2，pipefail 把它传成整条管道的状态，set -e 当场终止脚本，
+	#   而 `2>/dev/null` 又把原因吞掉 ⇒ 零输出、退出码 2 的静默失败（run #13 就是这么挂的）。
 	local ver; ver="$(sed -n 's/^PKG_VERSION:=//p' "$mk" | head -1 || true)"
 	[ -n "$ver" ] || die "读不出 $mk 里的 PKG_VERSION"
 	[ "$ver" = "$LUCKY_VERSION" ] \
-		|| die "lucky 版本不一致：源码树 PKG_VERSION=$ver，versions.env 的 LUCKY_VERSION=$LUCKY_VERSION（换 LUCKY_COMMIT 时三项要一起改）"
-	# 定位上游 Build/Prepare 下载的那份 tar.gz。依次放宽条件，避免因为 SDK 目录布局
-	# 的细节（build_dir 下的 target-* 名字、架构后缀、PKG_BUILD_DIR 位置）把构建搞挂：
-	#   ① build_dir 下按上游写死的文件名精确找
-	#   ② build_dir 下按"lucky-<版本> 目录里的 lucky_<版本>_Linux_*.tar.gz"找
-	#   ③ 整个 SDK 里再兜一遍
-	local tar="" where
-	for where in "$SDK/build_dir" "$SDK"; do
-		tar="$(find "$where" -name "lucky_${LUCKY_VERSION}_Linux_x86_64.tar.gz" 2>/dev/null | head -1 || true)"
-		if [ -n "$tar" ]; then break; fi
-		tar="$(find "$where" -path "*lucky-${LUCKY_VERSION}*" \
-			-name "lucky_${LUCKY_VERSION}_Linux_*.tar.gz" 2>/dev/null | head -1 || true)"
-		if [ -n "$tar" ]; then break; fi
-	done
-	if [ -z "$tar" ]; then
-		warn "在 SDK 里没找到 lucky 的运行包，实际找到的 lucky_* 文件："
-		find "$SDK" -name 'lucky_*' 2>/dev/null | head -20 | sed 's/^/      /' >&2 || true
-		die "找不到 lucky_${LUCKY_VERSION}_Linux_*.tar.gz —— 无法校验 lucky 的运行载荷（上游 Makefile 改了下载方式？见 versions.env 说明）"
+		|| die "lucky 版本不一致：源码树 PKG_VERSION=$ver，versions.env 的 LUCKY_VERSION=$LUCKY_VERSION（换 LUCKY_COMMIT 时要连 LUCKY_VERSION / LUCKY_TARBALL_SHA256 一起改）"
+	if grep -q 'CNC_LUCKY_PREPARE_PATCH' "$mk"; then
+		ok "lucky 的载荷校验补丁已存在（幂等，跳过）"
+		return 0
 	fi
-	local got; got="$(sha256sum "$tar" | cut -d' ' -f1 || true)"
-	[ "$got" = "$LUCKY_TARBALL_SHA256" ] \
-		|| die "lucky 运行包校验和不符：期望 $LUCKY_TARBALL_SHA256，实际 ${got:-（读不出）}（$tar）—— 上游资产变了或被换过，核对后更新 versions.env"
-	ok "lucky 运行包 sha256 校验通过（$(basename "$tar")）"
+	grep -q 'define Build/Prepare' "$mk" \
+		|| die "$mk 里找不到 define Build/Prepare，无法植入校验（上游改了结构？见 build.sh 的 patch_lucky_makefile）"
+	cat >> "$mk" <<'MAKEEOF'
+
+# ---- CNC_LUCKY_PREPARE_PATCH：由本工程追加（build.sh）-------------------------
+# 整体接管 Build/Prepare（make 里后定义的同名变量生效），唯一目的：在**解包之前**
+# 校验这份预编译运行包的 sha256 —— 它会被装成 /usr/bin/lucky 以 root 运行，而上游是
+# PKG_HASH:=skip + 自己 wget，等于没有任何完整性保证。校验和由 build.sh 通过命令行
+# 变量传入（见 versions.env 的 LUCKY_TARBALL_SHA256）。
+define Build/Prepare
+	[ -f $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz ] || wget -O $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz https://github.com/gdy666/lucky/releases/download/v$(PKG_VERSION)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz
+	echo "$(LUCKY_TARBALL_SHA256)  $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz" | sha256sum -c - || { echo "ERROR: lucky 运行包 sha256 校验和不符（期望 $(LUCKY_TARBALL_SHA256)）—— 上游换了资产或被换包，核对后更新 versions.env 的 LUCKY_TARBALL_SHA256"; rm -f $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz; false; }
+	tar -xzvf $(PKG_BUILD_DIR)/$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz -C $(PKG_BUILD_DIR)
+endef
+MAKEEOF
+	grep -q 'CNC_LUCKY_PREPARE_PATCH' "$mk" || die "追加 lucky 载荷校验补丁失败"
+	ok "已给 lucky 的 Build/Prepare 植入载荷校验（sha256=${LUCKY_TARBALL_SHA256:0:16}…）"
+}
+
+# 编译完 lucky 后，从编译日志（V=s 会回显每条配方命令、变量已展开）确认那段校验
+# **真的执行过**。这是最后一道保险：万一 make 的 define 覆盖语义与预期不符，
+# 补丁没生效会在这里被抓住，而不是让一个没校验过的 root 二进制进镜像。
+check_lucky_verified() {
+	local log="$WORK/build-lucky.log"
+	[ -s "$log" ] || die "找不到 lucky 的编译日志：$log"
+	grep -q 'sha256sum -c -' "$log" \
+		|| die "lucky 编译日志里没有出现载荷校验命令 —— Build/Prepare 补丁没生效（make 语义变了？），拒绝继续（$log）"
+	grep -q "$LUCKY_TARBALL_SHA256" "$log" \
+		|| die "lucky 编译日志里没有出现预期的校验和 $LUCKY_TARBALL_SHA256 —— 补丁可能没生效，拒绝继续（$log）"
+	ok "lucky 载荷校验确认已执行（编译日志里有对应命令）"
 }
 
 stage_packages() {
@@ -292,17 +324,23 @@ stage_packages() {
 		# 宿主机的 git/tar/zstd 版本（本例 Debian 13 与上游构建机不同），必然对不上；
 		# download.mk 明确支持 skip 哨兵值。**源完整性仍由 versions.env 钉住的
 		# PKG_SOURCE_VERSION(commit) 保证**，这里跳过的只是"重打包产物"的校验。
+		# lucky 额外传 LUCKY_TARBALL_SHA256：它的运行包是上游自己 wget 的预编译
+		# tar.gz（不看 PKG_HASH），校验由 patch_lucky_makefile 植入的 Build/Prepare 完成。
+		local mkvar=()
+		if [ "$name" = "lucky" ]; then
+			mkvar=("LUCKY_TARBALL_SHA256=$LUCKY_TARBALL_SHA256")
+		fi
 		make -C "$SDK" "package/$name/compile" V=s -j"$JOBS" \
-			PKG_HASH=skip PKG_MIRROR_HASH=skip >"$WORK/build-$name.log" 2>&1 \
+			PKG_HASH=skip PKG_MIRROR_HASH=skip ${mkvar[@]+"${mkvar[@]}"} >"$WORK/build-$name.log" 2>&1 \
 			|| { tail -n 40 "$WORK/build-$name.log" >&2; die "编译 $name 失败（完整日志 $WORK/build-$name.log）"; }
 		apk="$(find "$SDK/bin/packages" -name "$name-*.apk" | head -1 || true)"
 		[ -n "$apk" ] || die "$name 没有产出 .apk"
 		cp -f "$apk" "$IB/packages/"
 		ok "$(basename "$apk")"
 
-		# lucky 的运行包要单独回头验一次（见函数上面的说明）
+		# 确认刚才那段载荷校验真的执行过（见 check_lucky_verified 的说明）
 		if [ "$name" = "lucky" ]; then
-			verify_lucky_payload
+			check_lucky_verified
 		fi
 
 		# 同一次编译还会产出这个 app 的语言包（见 versions.env 的 SDK_EXTRA_APKS）。
