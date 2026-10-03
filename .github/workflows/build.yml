@@ -124,7 +124,7 @@ jobs:
       - name: 上传构建产物（保留 90 天）
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ steps.meta.outputs.tag }}
+          name: firmware-${{ steps.meta.outputs.tag || github.run_number }}
           path: |
             out/*.img.gz
             out/*.sha256
@@ -138,7 +138,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qemu-smoke-${{ steps.meta.outputs.tag }}
+          # ★ 用 run_number 兜底 ★ steps.meta 在"构建固件"失败时会被 skip，那时
+          #   它的 tag 是空串，artifact 名字就会变成 `qemu-smoke-`（实测见过）。
+          #   而"构建失败"恰恰是最需要拿到冒烟证据的时候。
+          name: qemu-smoke-${{ steps.meta.outputs.tag || github.run_number }}
           path: |
             out/qemu-smoke-serial.log
             out/qemu-smoke-results.txt

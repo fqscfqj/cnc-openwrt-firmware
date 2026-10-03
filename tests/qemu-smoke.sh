@@ -412,6 +412,10 @@ try:  # 让 ✔/✘ 在 GBK 控制台或 LANG=C 下也不会炸
 except Exception:
     pass
 BOOT_TIMEOUT = float(os.environ.get("CNC_QEMU_BOOT_TIMEOUT", "480"))
+# 控制台已可用后，再给 `init complete` 多少秒宽限（见 wait_boot 的说明）
+SOFT_GRACE = float(os.environ.get("CNC_QEMU_SOFT_GRACE", "120"))
+# 断言开跑前，等"首启配置层"就绪的最长秒数（见 wait_boot / READY 那段）
+READY_TIMEOUT = float(os.environ.get("CNC_QEMU_READY_TIMEOUT", "120"))
 CHK_TIMEOUT = float(os.environ.get("CNC_QEMU_CHECK_TIMEOUT", "20"))
 qemu_pid = int(qemu_pid)
 
@@ -508,15 +512,33 @@ def qemu_alive():
 
 
 def wait_boot():
-    """等到串口出现控制台/启动完成标志；期间不停敲回车唤醒 askfirst 控制台。"""
-    boot_re = (r"(init complete"
-               r"|Please press Enter to activate this console"
-               r"|root@[^\n]*#\s*$)")
+    """等到系统**真正**启动完成再返回。
+
+    ★ 这里等的必须是 `procd: - init complete -`，不能只等控制台横幅
+      "Please press Enter to activate this console"：那个横幅在 procd 还在跑启动
+      脚本时就已经出现，而本工程的 uci-defaults（首启收尾）、network、S99 服务
+      全都在它之后才跑完。纯软件模拟（CI 上没有 KVM）会把这段窗口拉长好几倍，
+      于是出现一批**时序性**假失败：hostname 还是 (none)、/etc/uci-defaults 里的
+      文件还在、msd_lite 还没起 —— 2026-10-03 的 run #16 就是这么一次挂了 4 条，
+      而事后看首启脚本其实是成功的（/etc/uci-defaults 最终为空）。
+      这是"断言问得太早"，不是固件的问题，所以修在驱动里。
+    兜底：万一 `init complete` 一直不出现（异常启动），在控制台已可用并再宽限
+      SOFT_GRACE 秒之后就先跑断言 —— 这样失败信息仍然是断言级的，而不是一句笼统超时。
+    """
+    init_re = r"(init complete)"
+    console_re = r"(Please press Enter to activate this console|root@[^\n]*#\s*$)"
     end = time.time() + BOOT_TIMEOUT
+    console_seen = None
     while time.time() < end:
-        m = wait_re(boot_re, 3)
+        m = wait_re(init_re, 3)
         if m:
             return m.group(1).strip()
+        if console_seen is None and re.search(console_re, text()):
+            console_seen = time.time()
+        if console_seen is not None and time.time() - console_seen > SOFT_GRACE:
+            print("  ! 控制台早已可用，但 %ds 内没等到 'init complete'，先跑断言"
+                  % int(SOFT_GRACE))
+            return "console（未见 init complete）"
         if not qemu_alive():
             return None
         send("")
@@ -573,6 +595,25 @@ if not wait_shell():
     print("  ✘ 串口上的 shell 不响应命令")
     sys.exit(1)
 print("  ✔ 串口 shell 可执行命令")
+
+# ── 断言开跑前，再显式确认"首启配置层"已经生效 ────────────────────────────────
+# 有一批断言读的就是"首启脚本 99-zz-cnc-defaults 跑完之后"的状态
+# （hostname、/etc/uci-defaults 是否已清空、firewall 的 iptv zone、dhcp.lan 的
+#  dhcpv6/ra、msd_lite 的配置与进程…）。它们早问一句就会得到假失败 —— 见 wait_boot。
+# 等不到也**继续**跑断言：让真正的问题以断言名的形式暴露出来，而不是变成一句超时。
+_ready_cmd = ("i=0; while [ $i -lt %d ]; do "
+              "if [ -z \"$(ls /etc/uci-defaults 2>/dev/null)\" ] && "
+              "[ \"$(cat /proc/sys/kernel/hostname)\" != '(none)' ]; then "
+              "echo @@READY@@; exit 0; fi; "
+              "sleep 1; i=$((i+1)); done; echo @@NOTREADY@@") % int(READY_TIMEOUT)
+_mark = len(text())
+send(_ready_cmd)
+_m = wait_re(r"^@@(READY|NOTREADY)@@\s*$", READY_TIMEOUT + 90, since=_mark)
+if _m and _m.group(1) == "READY":
+    print("  ✔ 首启配置已生效（/etc/uci-defaults 已清空、hostname 已设置）")
+else:
+    print("  ! 没等到「首启配置已生效」（最长 %ds）—— 继续跑断言，让失败项自己说话"
+          % int(READY_TIMEOUT))
 
 harness = [
     r"""ck(){ n="$1"; shift; if "$@" >/dev/null 2>&1; then echo "@@CK@@ $n OK"; else echo "@@CK@@ $n FAIL"; fi; }""",
