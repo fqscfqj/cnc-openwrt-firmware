@@ -13,7 +13,7 @@
 #
 # 阶段说明：
 #   preflight 环境与依赖自检        tools    下载并校验 SDK / ImageBuilder
-#   sources   按 commit 拉第三方源   packages 用 SDK 编 7 个包（+3 个中文语言包）
+#   sources   按 commit 拉第三方源   packages 用 SDK 编 5 个包（+2 个中文语言包）
 #   image     组装镜像               verify   离线校验（GPT/挂载/包清单）
 #   smoke     QEMU 冒烟（可选）
 # =============================================================================
@@ -66,8 +66,17 @@ warn() { printf '%s  ! %s%s\n' "$c_y" "$*" "$c_0" >&2; }
 die()  { printf '%s  ✘ %s%s\n' "$c_r" "$*" "$c_0" >&2; exit 1; }
 stage(){ printf '\n%s===== %s =====%s\n' "$c_b" "$*" "$c_0"; }
 
-# 给 github.com 下载/克隆加代理前缀（大陆构建机可用，例如 https://ghfast.top/）
-gh_url() { [ -n "$GITHUB_PROXY" ] && printf '%s%s' "$GITHUB_PROXY" "$1" || printf '%s' "$1"; }
+# 给 github.com 的下载/克隆加代理前缀（大陆构建机可用，例如 https://ghfast.top/）
+# ★ 只对 github.com 生效 ★：PREBUILT_APKS 里现在还有 release.66666.host（Lucky 的
+#   作者分发站），给非 GitHub 的 URL 套 GitHub 代理前缀只会 404 —— 而旧写法是无条件
+#   加前缀的，靠"默认 GITHUB_PROXY 为空"侥幸不出事。
+gh_url() {
+	case "$1" in
+		https://github.com/*|https://raw.githubusercontent.com/*|https://codeload.github.com/*)
+			[ -n "$GITHUB_PROXY" ] && printf '%s%s' "$GITHUB_PROXY" "$1" || printf '%s' "$1" ;;
+		*) printf '%s' "$1" ;;
+	esac
+}
 
 fetch_verified() { # <url> <dest> <sha256>
 	local url="$1" dest="$2" want="$3" got
@@ -174,13 +183,14 @@ stage_sources() {
 	local w="$HERE/pkgs/winsrc"
 	clone_pinned "$IMMORTALWRT_PACKAGES_REPO" "$IMMORTALWRT_PACKAGES_BRANCH" "$IMMORTALWRT_PACKAGES_COMMIT" "$w/immortalwrt/packages"
 	clone_pinned "$IMMORTALWRT_LUCI_REPO"     "$IMMORTALWRT_LUCI_BRANCH"     "$IMMORTALWRT_LUCI_COMMIT"     "$w/immortalwrt/luci"
-	clone_pinned "$LUCKY_REPO"                "$LUCKY_BRANCH"                "$LUCKY_COMMIT"                "$w/gdy666/luci-app-lucky"
+	# ★ 不再 clone gdy666/luci-app-lucky ★：lucky / luci-app-lucky 自 r4 起改用作者发布的
+	#   三个预编译 apk（核心 3.1.3 + LuCI 前端 + 中文包），见 versions.env 开头那段。
 
 	# 我们自己写的包（直接来自本仓库，不需要下载）
 	[ -f "$HERE/pkgs/winsrc/local/luci-app-cnc-upgrade/Makefile" ] \
 		|| die "缺少本地包 pkgs/winsrc/local/luci-app-cnc-upgrade/Makefile"
 
-	# 把 7 个包目录放进 SDK 的 package/
+	# 把要自编的包目录放进 SDK 的 package/
 	while IFS='|' read -r name path; do
 		[ -n "${name:-}" ] || continue
 		rm -rf "$SDK/package/$name"
@@ -200,10 +210,6 @@ stage_sources() {
 				"$SDK/package/$name/Makefile"
 		fi
 	done <<< "$SDK_PACKAGES"
-	# lucky 的运行载荷是上游自己 wget 的预编译 tar.gz（PKG_HASH 对它无效），
-	# 这里把那份 Makefile 的 Build/Prepare 接管掉、植入 sha256 校验（见函数说明）。
-	# 必须在编译之前、且包已经复制进 SDK/package/ 之后做。
-	patch_lucky_makefile
 	ok "已放入 SDK：$(echo "$SDK_PACKAGES" | tr -d ' ' | awk -F'|' 'NF{printf "%s ",$1}')"
 
 	# LuCI 应用需要 feeds/luci/luci.mk：默认 feeds 用的是 25.12.5 发布时钉住的 commit
@@ -214,14 +220,14 @@ stage_sources() {
 	fi
 	log "更新 feeds（首次约需数分钟）…"
 	./scripts/feeds update -a >/dev/null 2>&1 || die "feeds update 失败"
-	./scripts/feeds install -a >/dev/null 2>&1 || warn "feeds install 有部分失败（不影响我们这 7 个包）"
+	./scripts/feeds install -a >/dev/null 2>&1 || warn "feeds install 有部分失败（不影响我们这 5 个包）"
 	[ -f "$SDK/feeds/luci/luci.mk" ] || die "缺少 feeds/luci/luci.mk，LuCI 插件无法编译"
 	cd "$HERE"
 	make -C "$SDK" defconfig >/dev/null 2>&1 || true
 
 	# 语言包 luci-i18n-<app>-<语言> 是 luci.mk 依据 app 源码里的 po/<语言>/ 自动生成的
 	# 子包，与 app 同目录、同一次编译产出。这里显式把它们选进 .config，保证编译 app 时
-	# 一定产出对应 .apk（否则页面是英文 —— 这正是 lucky/msd_lite/vlmcsd 之前的样子）。
+	# 一定产出对应 .apk（否则页面是英文 —— 这正是 msd_lite/vlmcsd 之前的样子）。
 	# 必须在 defconfig 之后做：包目录此时才放进 SDK/package/，配置符号这时才存在。
 	local _src _extra _key
 	while IFS='|' read -r _src _extra; do
@@ -243,122 +249,19 @@ stage_sources() {
 	ok "feeds 就绪"
 }
 
-# ---------------------------------------------------------- lucky 运行载荷的校验
-# lucky 是唯一一个"由上游 Makefile 自己 wget 预编译运行包"的组件（见 versions.env）：
-# 上游 lucky/Makefile 是 `PKG_HASH:=skip` + 自己在 Build/Prepare 里
-#     wget … /lucky_<版本>_Linux_x86_64.tar.gz -O $(PKG_BUILD_DIR)/…
-#     tar -xzvf … -C $(PKG_BUILD_DIR)
-# 解出来的 lucky 会被装成 /usr/bin/lucky **以 root 运行**。build.sh 统一传的
-# PKG_HASH=skip 对它完全无效（上游根本不看 PKG_HASH）⇒ 不额外处理的话，它就是全工程
-# 唯一一个没有任何完整性校验的运行载荷。
+# ---------------------------------------------------------- Lucky 的载荷校验去哪了
+# r4 之前这里有一整套 patch_lucky_makefile / check_lucky_verified / dump_lucky_log：
+# 因为那时 lucky 的核心二进制是"上游 Makefile 自己在 Build/Prepare 里 wget 的预编译
+# tar.gz"，既不看 PKG_HASH、也无法用普通手段校验，只能就地给那份 Makefile 打补丁、
+# 再靠一个标记文件证明校验真的跑过（那三段注释连踩坑记录一起删了 —— 需要时看 git 历史）。
 #
-# ★ 为什么只能在 make 内部校验（2026-10-03 三次 CI 失败换来的结论）★
-#   * "编完再去 SDK 里找那份 tar.gz 验一遍" —— 不行：SDK 默认 CONFIG_AUTOREMOVE，
-#     package.mk 在 PKG_BUILD_DIR 里放 .autoremove，随后的 clean-build 把**整个
-#     build_dir 删掉**。实测（run #14）：编完 lucky 后整个 $SDK 下连一份
-#     lucky_*.tar.gz 都找不到。
-#   * "先把校验过的 tar.gz 预置进 PKG_BUILD_DIR，让上游那句 [ ! -f ] && wget 跳过" ——
-#     也不行：package.mk 的 $(STAMP_PREPARED) 配方**第一件事就是
-#     `@-rm -rf $(PKG_BUILD_DIR)`**，预置的文件在 Build/Prepare 之前就被删了。
-#   * "在 Makefile 末尾追加一个同名 define 覆盖 Build/Prepare" —— **实测不生效**
-#     （run #15：补丁打印了"已植入"，但编译日志里没有校验命令）。OpenWrt 的
-#     package.mk 是在 $(eval) 里展开 $(Build/Prepare) 的，展开时机早于"文件末尾的
-#     重新定义"。
-#   ⇒ 唯一稳的做法：**就地**把校验插进上游那段 Build/Prepare 里（下面的 python3 干这事，
-#     插在 `tar -xzvf …lucky_*.tar.gz` 之前），并且让"校验真的跑过"在
-#     build_dir 下留一个**标记文件**（PKG_BUILD_DIR 会被 AUTOREMOVE 删掉，它的父目录
-#     不会），check_lucky_verified 就凭这个标记判断 —— 不去猜 make 会怎么回显。
-patch_lucky_makefile() {
-	local mk="$SDK/package/lucky/Makefile"
-	[ -f "$mk" ] || die "找不到 lucky 的 Makefile：$mk（源码树布局变了？见 stage_sources）"
-	# 版本号核对：换了 LUCKY_COMMIT 却忘了同步 LUCKY_VERSION / SHA256 时给出明确提示。
-	# ★ 注意别写成 `ver="$(sed … | head -1)"` 就完事：本脚本是 set -euo pipefail，
-	#   sed 读不到文件返回 2，pipefail 把它传成整条管道的状态，set -e 当场终止脚本，
-	#   而 `2>/dev/null` 又把原因吞掉 ⇒ 零输出、退出码 2 的静默失败（run #13 就是这么挂的）。
-	local ver; ver="$(sed -n 's/^PKG_VERSION:=//p' "$mk" | head -1 || true)"
-	[ -n "$ver" ] || die "读不出 $mk 里的 PKG_VERSION"
-	[ "$ver" = "$LUCKY_VERSION" ] \
-		|| die "lucky 版本不一致：源码树 PKG_VERSION=$ver，versions.env 的 LUCKY_VERSION=$LUCKY_VERSION（换 LUCKY_COMMIT 时要连 LUCKY_VERSION / LUCKY_TARBALL_SHA256 一起改）"
-	# ★ `|| rc=$?` 必须跟 python3 在同一行：写成 `… <<'PY' \` + 换行 + `|| rc=$?` 的话，
-	#   续行会把它变成 heredoc 的**第一行内容**（喂给 python 当代码），于是 python 报
-	#   SyntaxError、而那句判断根本没接上。（本地测试抓到的）
-	# ★ python 侧一律用**退出码**通信、只往 stdout/stderr 写 ASCII：
-	#   某些环境（例如中文 Windows）python 的 stdout 是 GBK，往那里打 ✔ 或中文会直接
-	#   UnicodeEncodeError 崩掉，进而把构建搞挂。
-	local rc=0
-	MK="$mk" SHA="$LUCKY_TARBALL_SHA256" python3 - <<'PY' || rc=$?
-import os, re, sys
-
-p, sha = os.environ['MK'], os.environ['SHA']
-s = open(p, encoding='utf-8').read()
-
-if 'CNC_LUCKY_PREPARE_PATCH' in s:
-    sys.exit(10)              # 10 = 已经打过补丁（幂等）
-
-
-# 上游 Build/Prepare 里那一行：`<TAB>tar -xzvf <路径>.tar.gz -C …`
-# ★ 注意别按文件名里的 "lucky_" 去找：Makefile 里那一段是变量表达式
-#   `$(PKG_NAME)_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz`，**没有**字面的 lucky_
-#   （踩过一次）。这个文件里只有一条 `tar -xzvf … .tar.gz`，按结构匹配即可。
-m = re.search(r'^([ \t]*)tar -xzvf (\S+\.tar\.gz) -C ', s, re.M)
-if not m:
-    # 只用 ASCII：见上面关于 PYTHONIOENCODING 的说明（这条路径可能在任何环境下触发）
-    sys.stderr.write('ERROR: cannot find upstream Build/Prepare line '
-                     '"tar -xzvf ...tar.gz -C " in %s\n' % p)
-    sys.exit(3)
-
-ind, tar = m.group(1), m.group(2)
-ins = (
-    ind + 'echo "' + sha + '  ' + tar + '" | sha256sum -c - || '
-    '{ echo "ERROR: lucky 运行包 sha256 校验和不符（期望 ' + sha + '）—— 上游换了资产或被换包，'
-    '核对后更新 versions.env 的 LUCKY_TARBALL_SHA256"; rm -f ' + tar + '; false; }'
-    '   # CNC_LUCKY_PREPARE_PATCH\n'
-    # 标记文件写在 $(BUILD_DIR)（= build_dir/target-*）下：PKG_BUILD_DIR 会被
-    # CONFIG_AUTOREMOVE 删掉，它的父目录不会，所以标记能留到 check_lucky_verified。
-    + ind + 'echo "' + sha + '" > "$(BUILD_DIR)/.cnc-lucky-verified"'
-    '   # CNC_LUCKY_PREPARE_PATCH\n'
-)
-open(p, 'w', encoding='utf-8', newline='\n').write(s[:m.start()] + ins + s[m.start():])
-PY
-	case "$rc" in
-		0)  ok "已就地给 lucky 的 Build/Prepare 植入载荷校验（sha256=${LUCKY_TARBALL_SHA256:0:16}…）" ;;
-		10) ok "lucky 的载荷校验补丁已存在（幂等，跳过）" ;;
-		*)  die "给 lucky 的 Makefile 植入载荷校验失败（rc=$rc；上游改了结构？见 build.sh 的 patch_lucky_makefile）" ;;
-	esac
-	# 自检：确认补丁真写进去了（避免"python 说成功了但文件没变"这种）
-	grep -q 'CNC_LUCKY_PREPARE_PATCH' "$mk" \
-		|| die "植入校验后没在 $mk 里找到补丁标记"
-}
-
-# 失败时把编译日志里与下载/校验有关的行打出来 —— 免得又是一次"看不见原因"的失败
-dump_lucky_log() {
-	local log="$WORK/build-lucky.log"
-	[ -s "$log" ] || { warn "lucky 的编译日志不存在：$log"; return 0; }
-	warn "lucky 编译日志（$log，共 $(wc -l < "$log") 行）里的关键行："
-	grep -n -E 'wget|tar -xz|sha256sum|CNC_LUCKY|Build/Prepare|lucky_2' "$log" 2>/dev/null \
-		| head -20 | cut -c1-300 | sed 's/^/      /' >&2 || true
-}
-
-# 编译完 lucky 后，确认那段校验**真的执行过**：补丁会在 $(BUILD_DIR) 下留一个
-# .cnc-lucky-verified，内容是它校验过的 sha256 —— 只有跑过校验的配方才写得出这个文件。
-# 这比"去编译日志里 grep make 回显"可靠（回显格式受 V= 影响），也是补丁是否生效的铁证。
-check_lucky_verified() {
-	local marker
-	marker="$(find "$SDK/build_dir" -maxdepth 3 -name '.cnc-lucky-verified' 2>/dev/null | head -1 || true)"
-	if [ -z "$marker" ]; then
-		dump_lucky_log
-		die "没找到载荷校验标记（$SDK/build_dir/*/.cnc-lucky-verified）—— 那段校验没执行，拒绝继续（见上方的编译日志片段）"
-	fi
-	local got; got="$(cat "$marker" 2>/dev/null || true)"
-	if [ "$got" != "$LUCKY_TARBALL_SHA256" ]; then
-		dump_lucky_log
-		die "载荷校验标记里的校验和是 '$got'，与 versions.env 的 LUCKY_TARBALL_SHA256 不符（$marker）"
-	fi
-	ok "lucky 载荷校验确认已执行（sha256=${LUCKY_TARBALL_SHA256:0:16}…）"
-}
+# 现在幸运的是这个问题从根上消失了：核心二进制不再是"构建期下载的裸 tar.gz"，而是
+# 作者按 OpenWrt 25.12 逐架构发布的 **apk 包**，本工程在 versions.env 的 PREBUILT_APKS
+# 里钉住它的 sha256（download → sha256sum -c → 放进 ImageBuilder 的本地索引），
+# 校验强度和 openclash / bandix 完全一致，且不需要碰上游任何 Makefile。
 
 stage_packages() {
-	stage "packages：用 SDK 编译 7 个包（含 3 个中文语言包）"
+	stage "packages：用 SDK 编译 5 个包（含 2 个中文语言包）"
 	mkdir -p "$IB/packages"
 	# 清掉上一次运行留下的 apk：否则数量断言会失真，旧的同名包还可能被 apk 当成候选
 	rm -f "$IB/packages"/*.apk "$IB/packages"/packages.adb 2>/dev/null || true
@@ -371,24 +274,14 @@ stage_packages() {
 		# 宿主机的 git/tar/zstd 版本（本例 Debian 13 与上游构建机不同），必然对不上；
 		# download.mk 明确支持 skip 哨兵值。**源完整性仍由 versions.env 钉住的
 		# PKG_SOURCE_VERSION(commit) 保证**，这里跳过的只是"重打包产物"的校验。
-		# lucky 额外传 LUCKY_TARBALL_SHA256：它的运行包是上游自己 wget 的预编译
-		# tar.gz（不看 PKG_HASH），校验由 patch_lucky_makefile 植入的 Build/Prepare 完成。
-		local mkvar=()
-		if [ "$name" = "lucky" ]; then
-			mkvar=("LUCKY_TARBALL_SHA256=$LUCKY_TARBALL_SHA256")
-		fi
+		# （lucky 曾经要额外传 LUCKY_TARBALL_SHA256，现在它已经不走 SDK 编译了。）
 		make -C "$SDK" "package/$name/compile" V=s -j"$JOBS" \
-			PKG_HASH=skip PKG_MIRROR_HASH=skip ${mkvar[@]+"${mkvar[@]}"} >"$WORK/build-$name.log" 2>&1 \
+			PKG_HASH=skip PKG_MIRROR_HASH=skip >"$WORK/build-$name.log" 2>&1 \
 			|| { tail -n 40 "$WORK/build-$name.log" >&2; die "编译 $name 失败（完整日志 $WORK/build-$name.log）"; }
 		apk="$(find "$SDK/bin/packages" -name "$name-*.apk" | head -1 || true)"
 		[ -n "$apk" ] || die "$name 没有产出 .apk"
 		cp -f "$apk" "$IB/packages/"
 		ok "$(basename "$apk")"
-
-		# 确认刚才那段载荷校验真的执行过（见 check_lucky_verified 的说明）
-		if [ "$name" = "lucky" ]; then
-			check_lucky_verified
-		fi
 
 		# 同一次编译还会产出这个 app 的语言包（见 versions.env 的 SDK_EXTRA_APKS）。
 		# ★漏掉它 = LuCI 页面全是英文★，所以这里找不到就直接构建失败，不静默放过。
@@ -403,7 +296,7 @@ stage_packages() {
 		done <<< "$SDK_EXTRA_APKS"
 	done <<< "$SDK_PACKAGES"
 
-	stage "packages：下载并校验 7 个预编译 apk"
+	stage "packages：下载并校验 10 个预编译 apk"
 	local localcopy dest
 	while IFS='|' read -r dir file url sha dest; do
 		[ -n "${file:-}" ] || continue
@@ -418,6 +311,17 @@ stage_packages() {
 			cp -f "$DL/prebuilt/$file" "$IB/packages/$dest"
 		fi
 		[ "$dest" = "$file" ] || ok "  规范文件名 → $dest"
+		# lucky 核心那一行必须与 LUCKY_VERSION 对上：冒烟里的 lucky_core_version 断言
+		# 是拿 LUCKY_VERSION 去比"二进制自报的版本"，所以在构建期先拦一道 ——
+		# 换预编译包却忘了改 LUCKY_VERSION 时，这里就报清楚，不用等冒烟。
+		case "$dest" in
+			lucky-[0-9]*)
+				case "$dest" in
+					*"-${LUCKY_VERSION}-"*) ;;
+					*) die "lucky 核心 apk 的文件名是 $dest，与 versions.env 的 LUCKY_VERSION=$LUCKY_VERSION 不一致（这两处必须一起改）" ;;
+				esac
+				;;
+		esac
 	done <<< "$PREBUILT_APKS"
 
 	# 期望数量直接从清单推导，避免以后加包时忘了同步这里的魔数

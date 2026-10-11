@@ -248,6 +248,9 @@ for f in \
 	"usr/share/openclash|OpenClash 程序目录" \
 	"etc/init.d/lucky|Lucky 服务" \
 	"usr/bin/lucky|Lucky 主程序" \
+	"etc/config/lucky|Lucky 的 uci 配置（新打包方式的 conffile：enabled/logger/configdir）" \
+	"usr/libexec/lucky-call|Lucky 的 rpcd 后端助手（LuCI 3.0.0 页面全靠它）" \
+	"usr/share/lucky/arch|Lucky 的架构标记文件（lucky-call arch 读它）" \
 	"etc/init.d/vlmcsd|vlmcsd 服务" \
 	"usr/bin/vlmcsd|vlmcsd 主程序" \
 	"etc/vlmcsd.ini|vlmcsd 配置" \
@@ -271,6 +274,7 @@ done
 for f in "usr/sbin/cnc-upgrade|在线升级脚本" \
          "etc/init.d/openclash|OpenClash 服务脚本" \
          "etc/init.d/lucky|Lucky 服务脚本" \
+         "usr/libexec/lucky-call|Lucky 的 rpcd 后端助手" \
          "etc/init.d/vlmcsd|vlmcsd 服务脚本" \
          "etc/init.d/msd_lite|msd_lite 服务脚本" \
          "etc/init.d/bandix|Bandix 服务脚本" \
@@ -279,6 +283,40 @@ for f in "usr/sbin/cnc-upgrade|在线升级脚本" \
 	p="${f%%|*}"; d="${f##*|}"
 	[ -x "$MNT2/$p" ] && ok "$d 可执行" || bad "$d 没有可执行位（$p）"
 done
+
+sec "rootfs：Lucky（r4 起走作者发布的三个预编译 apk：核心 + LuCI + 中文包）"
+# ★ 这里只能看"文件在不在、默认值对不对"★
+#   "二进制能不能跑、版本是不是 versions.env 里钉的那个"必须进系统才知道：apk 的
+#   已安装数据库是 ADB 二进制格式，离线读不出包版本。那两条断言在
+#   tests/qemu-smoke.sh 里（lucky_core_version / lucky_arch_call），
+#   两者合起来才等于"这个 apk 装的确实是我们钉的那个版本"。
+[ "$(cat "$MNT2/usr/share/lucky/arch" 2>/dev/null)" = "x86_64" ] \
+	&& ok "Lucky 架构标记 = x86_64（选到的 x86_64 那份核心）" \
+	|| bad "/usr/share/lucky/arch 不是 x86_64（实际 '$(cat "$MNT2/usr/share/lucky/arch" 2>/dev/null)'）—— 预编译 apk 选错架构了"
+grep -q "option configdir '/etc/config/lucky.daji'" "$MNT2/etc/config/lucky" 2>/dev/null \
+	&& ok "Lucky 默认配置目录仍是 /etc/config/lucky.daji（与 keep.d 登记的一致）" \
+	|| bad "/etc/config/lucky 里没有 'option configdir /etc/config/lucky.daji' —— 升级会丢 Lucky 配置"
+[ -f "$MNT2/lib/apk/packages/lucky.conffiles_static" ] \
+	&& ok "lucky 的 conffiles_static 已生成（sysupgrade 靠它保住 /etc/config/lucky）" \
+	|| bad "缺少 /lib/apk/packages/lucky.conffiles_static —— 升级后 Lucky 的 uci 配置会丢"
+# 注意别用 grep -x 精确匹配整行：apk v3 的 conffiles 记录是"路径 + 包内文件的 sha256"
+# 两列（本包实测是 `/etc/config/lucky <64 位十六进制>`），整行匹配必然不中。
+grep -q '/etc/config/lucky' "$MNT2/lib/apk/packages/lucky.conffiles_static" 2>/dev/null \
+	&& ok "conffiles_static 里登记了 /etc/config/lucky" \
+	|| bad "lucky.conffiles_static 里没有 /etc/config/lucky"
+# LuCI 前端（3.0.0）是 JS 页面 + rpcd ACL，缺了菜单会直接不显示（它 dependent 于 /etc/config/lucky）
+for f in "www/luci-static/resources/view/lucky/config.js|Lucky 前端页面（JS）" \
+         "usr/share/luci/menu.d/luci-app-lucky.json|Lucky 菜单" \
+         "usr/share/rpcd/acl.d/luci-app-lucky.json|Lucky 的 rpcd 授权（含 lucky-call 各子命令）" \
+         "usr/lib/lua/luci/controller/lucky.lua|Lucky 控制器（menu 的 dependent 判断）" \
+         ; do
+	p="${f%%|*}"; d="${f##*|}"
+	[ -e "$MNT2/$p" ] && ok "$d" || bad "缺少 $d（$p）"
+done
+# rpcd-mod-file 是 LuCI 3.0.0 页面调用 lucky-call 的前提（it 通过 file.exec 跑助手脚本）
+[ -f "$MNT2/usr/lib/rpcd/file.so" ] || find "$MNT2/usr/lib/rpcd" -name 'file.so' 2>/dev/null | grep -q . \
+	&& ok "rpcd-mod-file 已安装（LuCI 用它 exec lucky-call）" \
+	|| bad "缺少 rpcd-mod-file（/usr/lib/rpcd/file.so）—— Lucky 页面会报 'file' 对象不存在"
 
 sec "rootfs：UPnP/NAT-PMP 与 x86 排障工具（2026-10 补装）"
 [ -x "$MNT2/etc/init.d/miniupnpd" ] && ok "miniupnpd 服务脚本可执行" \
@@ -302,8 +340,9 @@ grep -q "mediaurlbase '/luci-static/argon'" "$MNT2/etc/config/luci" 2>/dev/null 
 grep -q "lang 'zh_cn'" "$MNT2/etc/config/luci" 2>/dev/null \
 	&& ok "LuCI 默认语言 = zh_cn" || bad "LuCI 默认语言不是 zh_cn"
 # LuCI 的每个 app 各有独立语言包：只装 luci-i18n-base-zh-cn 时防火墙等页面仍是英文。
-# 这里逐个 app 断言 .lmo 真的进了镜像 —— 尤其自编的那几个（lucky/msd_lite/vlmcsd），
-# 它们的语言包不来自官方源，最容易被构建脚本漏掉。
+# 这里逐个 app 断言 .lmo 真的进了镜像 —— 尤其自编的那两个（msd_lite/vlmcsd），
+# 它们的语言包不来自官方源，最容易被构建脚本漏掉（lucky 的语言包自 r4 起随核心一起
+# 走 PREBUILT_APKS，不在 SDK_EXTRA_APKS 里，但也一并断言，防止换包时被漏装）。
 for lmo in base firewall package-manager upnp msd_lite vlmcsd lucky; do
 	find "$MNT2/usr" -name "$lmo.zh-cn.lmo" 2>/dev/null | grep -q . \
 		&& ok "中文语言包：$lmo.zh-cn.lmo" \

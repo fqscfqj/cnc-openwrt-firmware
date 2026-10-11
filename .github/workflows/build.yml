@@ -193,7 +193,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "OpenWrt $TAG for CncTion 1338NP-12" \
-              --notes "包含 OpenClash / Lucky / vlmcsd / msd_lite / Bandix / Argon / WireGuard / UPnP / IPv6，eth0=WAN。回滚：从本 Release 下载镜像后走 LuCI『备份/刷写固件』或用 sysupgrade。" \
+              --notes "包含 OpenClash / Lucky 3.1.3（核心+LuCI 前端+中文包，作者发布的 apk）/ vlmcsd / msd_lite / Bandix / Argon / WireGuard / UPnP / IPv6，eth0=WAN。刷入后不再把设备上的 Lucky 降级（见手册 §7.8）。回滚：从本 Release 下载镜像后走 LuCI『备份/刷写固件』或用 sysupgrade。" \
               out/*.img.gz out/*.sha256 out/*.manifest out/latest.json
           fi
 

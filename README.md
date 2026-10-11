@@ -5,6 +5,8 @@
 
 * 基线：**OpenWrt 25.12.5 x86/64 generic**，`ext4-combined-efi` 镜像（内核 6.12.94，apk 包管理）
 * 插件：**OpenClash / Lucky / vlmcsd / msd_lite / Bandix**
+  （Lucky 自 r4 起用作者发布的 OpenWrt apk：核心 **3.1.3** + LuCI **3.0.0** 前端 + 中文包，
+  这样刷机**不会再把它降级**——降级会让 3.x 写的加密配置读不出来，见手册 §7.8）
 * Web：**Argon 主题**（默认）+ 简体中文
 * 网络：**eth0 = WAN(PPPoE)**、eth1 = IPTV、eth2+eth3 = LAN 桥（192.168.2.1/24）
 * 另有：**WireGuard**（只装能力不预置隧道）、**IPv6 默认开启**、**网页一键在线升级**
@@ -37,9 +39,13 @@ FIRMWARE_BUILD=r2
 > ★ **跨 OpenWrt 版本时必须一起改的还有**（只改上面两个值会构建失败，不是静默出错）★
 > `SDK_FILE`（里面钉着 `gcc-14.3.0`）、`SDK_SHA256` / `IMAGEBUILDER_SHA256`（每个 release 都不同）、
 > `OPENWRT_KVER`（`verify.sh` 会拿它比内核版本）；大版本升级还要改
-> `IMMORTALWRT_PACKAGES_BRANCH/COMMIT`、`IMMORTALWRT_LUCI_BRANCH/COMMIT`，以及
-> `LUCKY_VERSION` / `LUCKY_TARBALL_SHA256`（见 `versions.env` 里的注释）。
+> `IMMORTALWRT_PACKAGES_BRANCH/COMMIT`、`IMMORTALWRT_LUCI_BRANCH/COMMIT`（见 `versions.env` 里的注释）。
 > 冒烟断言里的版本号/内核号已改成从 `versions.env` 取，不会因为改版本号而误挂。
+>
+> Lucky 是另一回事：它自 r4 起**不走 SDK 编译**，而是钉作者发布的三个预编译 apk
+> （核心 + LuCI 前端 + 中文包），换版本要改 `PREBUILT_APKS` 里那三行（URL + sha256）
+> 并同步 `LUCKY_VERSION`（冒烟拿它核对镜像里跑的版本）。为什么这么做、以及"为什么
+> 镜像里敢放 3.1.3-beta"，见 `versions.env` 开头那段与手册 §7.8。
 
 > ★ **两条铁律** ★
 > 1. **不要改 `KERNEL_PARTSIZE` / `ROOTFS_PARTSIZE`**。`sysupgrade` 只在"镜像分区表 ==
@@ -57,15 +63,15 @@ FIRMWARE_BUILD=r2
 
 | 文件 | 作用 |
 |---|---|
-| `versions.env` | **唯一的版本号文件**：OpenWrt 版本、第三方源 commit、7 个预编译 apk 的 sha256（+ 文件名规范化规则）、`lucky` 运行包 sha256、包清单、布局常量 |
-| `build.sh` | 构建主脚本：自检 → 官方工具链（校验 sha256）→ 取源码（按 commit）→ SDK 编 7 个包（并回头校验 lucky 的运行包）→ ImageBuilder 出图 → 校验 → 冒烟 → 产出 `out/build.env` |
+| `versions.env` | **唯一的版本号文件**：OpenWrt 版本、第三方源 commit、10 个预编译 apk 的 sha256（+ 文件名规范化规则，含 Lucky 的核心/前端/语言包三个）、SDK 自编包清单、布局常量 |
+| `build.sh` | 构建主脚本：自检 → 官方工具链（校验 sha256）→ 取源码（按 commit）→ SDK 编 5 个包 → 下载校验 10 个预编译 apk → ImageBuilder 出图 → 校验 → 冒烟 → 产出 `out/build.env` |
 | `verify.sh` | 离线校验：GPT 布局、grub 串口/failsafe、四大插件与 Bandix/WireGuard/Argon/UPnP 是否真的在镜像里、IPv6 预置、升级保留清单，以及"升级守卫还在不在" |
 | `layout-reference.txt` | 分区布局基线（保证升级能"就地写入"）。**缺失或不一致都判失败，不会自动重建** |
 | `files/` | 预置进镜像的配置：`network`(eth0=WAN/IPv6)、`luci`(Argon)、`system`、`uci-defaults`、`keep.d` |
 | `pkgs/winsrc/local/luci-app-cnc-upgrade/` | 自研"固件在线升级"包（shell 逻辑 + LuCI 页面） |
-| `pkgs/prebuilt/` | 7 个预编译 apk（OpenClash / Argon×3 / Bandix×3），按 sha256 校验 |
+| `pkgs/prebuilt/` | 10 个预编译 apk（OpenClash / Argon×3 / Bandix×3 / Lucky×3），按 sha256 校验 |
 | `tests/run.sh` | 升级逻辑单测（版本比较、sha256/大小校验、降级、坏包拦截、保留/清空配置、**布局变化拦截、备份超预算拦截、`file` 字段目录穿越拦截、并发锁**） |
-| `tests/qemu-smoke.sh` | QEMU+OVMF 冒烟：引导镜像 + 串口进系统跑 112 项断言（见手册 §2.1）。断言里的版本号/内核号取自 `versions.env` |
+| `tests/qemu-smoke.sh` | QEMU+OVMF 冒烟：引导镜像 + 串口进系统跑 121 项断言（见手册 §2.1）。断言里的版本号/内核号/Lucky 版本取自 `versions.env` |
 | `smoke-evidence/` | 冒烟的原始证据（断言结果 / 系统取证 / 串口日志 / 运行日志 + 说明）。**证据只对它自己那一份 sha256 负责**，见 `smoke-evidence/README.md` |
 | `.github/workflows/build.yml` | CI：测试 → 构建（含冒烟）→ 校验 → **发布门禁（必须有通过的冒烟证据）** → 发布到"滚动 Release + 按版本 Release" |
 | `secrets/` | 可选凭据（`BAKE_SECRETS=1` 时才用，不入库） |
