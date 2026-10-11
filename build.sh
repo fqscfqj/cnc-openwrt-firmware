@@ -450,7 +450,18 @@ PY
 	log "ImageBuilder .config：p1=${KERNEL_PARTSIZE}MiB p2=${ROOTFS_PARTSIZE}MiB / 串口 ttyS0 115200 / 超时 3s"
 
 	# ---- 组装镜像 ----
-	local pkgs; pkgs="$(echo "$IMAGE_PACKAGES" | tr '\n' ' ' | tr -s ' ')"
+	# ---- 组装镜像 ----
+	# ★ IMAGE_PACKAGES 必须先剥掉注释 ★（2026-10 首次真机构建才暴露）
+	# 它是"给人读的清单"，注释习惯写在字符串内部、紧挨着被解释的那一行；但这个值是
+	# **整串透传**给 ImageBuilder 的 PACKAGES= 的，而 make 不把命令行变量里的 # 当成
+	# 注释、apk 也不认 —— 于是注释里的每个词都被当成包名去装：
+	#     world[app] / world[ImageBuilder] / world[luci-app-ap-modem：SDK] ...
+	# ⇒ 在 package_install 阶段直接失败（make[2]: Error 30），而且报错是一堆
+	#   "no such package: 编的；"，很难一眼看出根因是注释。
+	# r3 之前字符串内部碰巧一行注释都没有，所以这个洞一直没露出来（r4 起才写进去）。
+	# ★ 另外三个清单（SDK_PACKAGES / SDK_EXTRA_APKS / PREBUILT_APKS）是 build.sh 自己
+	#   按分隔符逐行读的，读循环**不会**跳过 # 行 —— 那里依然不要在字符串内部写注释。
+	local pkgs; pkgs="$(printf '%s\n' "$IMAGE_PACKAGES" | sed 's/#.*$//' | tr '\n' ' ' | tr -s ' ')"
 	log "make image（首次约 5–15 分钟）…"
 	make -C "$IB" clean >/dev/null 2>&1 || true
 	make -C "$IB" image \
