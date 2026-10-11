@@ -521,7 +521,18 @@ def text():
     return raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
+MAX_CMD = 480  # 串口单行上限（实测约 510 字节），留出余量
 def send(cmd):
+    # ★ 长度硬闸 ★（2026-10-11 加）串口控制台的行编辑缓冲区约 512 字节，超出部分
+    # **被静默截断**：shell 会停在续行提示符上等输入，之后每条断言都变成 TIMEOUT，
+    # 根因极难看出来（r4 的就绪门 529 字符就是这么把整场冒烟废掉的）。
+    if len(cmd) > MAX_CMD:
+        sys.stderr.write(
+            "FATAL: 串口命令长 %d 字节，超过上限 %d。串口行编辑缓冲区约 512 字节，"
+            "超出会被**静默截断**（shell 停在续行提示符，之后断言全部 TIMEOUT）。"
+            "请把这条命令改短。\n" % (len(cmd), MAX_CMD))
+        sys.stderr.write("  命令开头: %s\n" % cmd[:120])
+        sys.exit(2)
     sock.sendall((cmd + "\n").encode())
 
 
@@ -637,16 +648,23 @@ print("  ✔ 串口 shell 可执行命令")
 # 问题以断言名暴露，而不是变成一句笼统超时；所以这道门不会掩盖首启脚本的真失败。
 # ★ 命令里绝对不能用 `exit` ★：那是串口上的登录 shell，exit 会连 askfirst 控制台一起
 #   干掉，之后所有断言都"无响应"（run #17 就是这么把 4 条时序失败变成 3 条超时的）。
+# ★★ 而且这道门必须**短** ★★ 串口控制台的行编辑缓冲区只有约 512 字节（OpenWrt
+#   busybox 的 CONFIG_FEATURE_EDITING_MAX_LEN），**超出的部分被静默截断** —— 症状是
+#   shell 停在续行提示符 '>' 上等输入，之后每一条断言都变成 TIMEOUT，完全看不出根因。
+#   2026-10-11 实测：463 字符（r2/r3 那道门）是通的；r4 往门里加了 pidof lucky 与
+#   diag 里的 lucky=[...] 之后涨到 529 字符，在第 510 字符处被砍掉，冒烟整场失效。
+#   所以下面刻意用短写法（省掉重复的 2>/dev/null、diag 用短标签），实长 ~435 字符。
+#   driver.py 的 send() 里另有一道硬闸（MAX_CMD），以后再加东西越线会立刻报错。
 _ready_cmd = (
     "ok=0; i=0; while [ $i -lt %d ]; do "
-    "if [ -z \"$(ls /etc/uci-defaults 2>/dev/null)\" ] && "
+    "[ -z \"$(ls /etc/uci-defaults 2>/dev/null)\" ] && "
     "[ \"$(cat /proc/sys/kernel/hostname)\" != '(none)' ] && "
-    "pidof msd_lite >/dev/null 2>&1 && pidof lucky >/dev/null 2>&1; then ok=1; break; fi; "
+    "pidof msd_lite >/dev/null && pidof lucky >/dev/null && { ok=1; break; }; "
     "sleep 2; i=$((i+1)); done; "
     "if [ \"$ok\" = 1 ]; then echo @@READY@@; else echo @@NOTREADY@@; "
-    "echo \"  diag: uci-defaults=[$(ls /etc/uci-defaults 2>/dev/null | tr '\\n' ' ')] "
-    "hostname=$(cat /proc/sys/kernel/hostname 2>/dev/null) "
-    "msd_lite=[$(pidof msd_lite 2>/dev/null)] lucky=[$(pidof lucky 2>/dev/null)]\"; fi"
+    "echo \"  diag: ud=[$(ls /etc/uci-defaults 2>/dev/null)] "
+    "hn=$(cat /proc/sys/kernel/hostname) "
+    "ml=$(pidof msd_lite) lk=$(pidof lucky)\"; fi"
 ) % int(READY_TIMEOUT / 2)
 _mark = len(text())
 send(_ready_cmd)
