@@ -373,6 +373,26 @@ c|cnc_upgrade_view|test -f /www/luci-static/resources/view/cnc_upgrade/upgrade.j
 c|cnc_upgrade_keepd|test -f /lib/upgrade/keep.d/99-cnc-plugins
 c|cnc_release_file|test -s /etc/cnc-release
 x|cnc_upgrade_usage|/usr/sbin/cnc-upgrade --help 2>&1 | grep -q 用法
+# --- 访问光猫（luci-app-ap-modem）★ 这一组正是"离线校验看不到的那一半" ★ ---
+# 本工程在这个插件上踩到两个**只有起机才暴露**的真缺陷，所以这里刻意不看
+# "文件在不在"，而看**功能到底生效没有**：
+#   ① 上游 init 脚本从不重载防火墙 ⇒ nft 里 masquerade 的 oifname 少了 eth0
+#      ⇒ 症状是"路由器自己能 ping 通光猫、内网客户端打不开"（= 上游 issue #2613）。
+#   ② 上游 boot() 是个空的 rc_procd true ⇒ 全新刷机首启没人调用 generate_config
+#      ⇒ 包装上了却完全不生效，得手工去 LuCI 里开关一次才活。
+# 对应关系：ap_modem_eth0_vip / ap_modem_iface_up 守 ②，ap_modem_masq_eth0 守 ①。
+x|ap_modem_pkg|apk list --installed 2>/dev/null | grep -q "^luci-app-ap-modem"
+x|ap_modem_kmod_veth|apk list --installed 2>/dev/null | grep -q "^kmod-veth"
+x|ap_modem_veth_ko|find /lib/modules -name "veth.ko*" | grep -q .
+c|ap_modem_menu|test -f /usr/share/luci/menu.d/luci-app-ap-modem.json
+c|ap_modem_acl|test -f /usr/share/rpcd/acl.d/luci-app-ap-modem.json
+c|ap_modem_view|test -f /www/luci-static/resources/view/ap_modem.js
+c|ap_modem_hotplug|test -x /etc/hotplug.d/iface/99-ap-modem
+x|ap_modem_i18n|find /usr -name "ap-modem.zh-cn.lmo" 2>/dev/null | grep -q .
+x|ap_modem_veth_dev|ip -br link 2>/dev/null | grep -q "vap-lan"
+x|ap_modem_iface_up|ubus call network.interface.vap_wan status 2>/dev/null | grep -qE '"up": *true'
+x|ap_modem_eth0_vip|ip -4 addr show eth0 2>/dev/null | grep -q "192.168.1.254"
+x|ap_modem_masq_eth0|nft list chain inet fw4 srcnat 2>/dev/null | grep -q '"eth0"'
 # --- 内核模块与运行时 ---
 x|kmod_igc_ko|find /lib/modules -name "igc.ko*" | grep -q .
 x|kmod_tun_ko|find /lib/modules -name "tun.ko*" | grep -q .

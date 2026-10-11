@@ -261,6 +261,12 @@ for f in \
 	"lib/upgrade/keep.d/bandix|Bandix 自带升级保留清单" \
 	"usr/sbin/cnc-upgrade|在线升级脚本" \
 	"usr/share/luci/menu.d/luci-app-cnc-upgrade.json|在线升级 LuCI 菜单" \
+	"etc/init.d/ap_modem|ap_modem 服务脚本" \
+	"etc/config/ap_modem|ap_modem 默认配置" \
+	"etc/hotplug.d/iface/99-ap-modem|ap_modem 防火墙兜底脚本" \
+	"usr/share/luci/menu.d/luci-app-ap-modem.json|访问光猫 LuCI 菜单" \
+	"usr/share/rpcd/acl.d/luci-app-ap-modem.json|访问光猫 rpcd 授权" \
+	"usr/lib/lua/luci/i18n/ap-modem.zh-cn.lmo|访问光猫中文翻译" \
 	"www/cgi-bin/luci|LuCI Web 入口" \
 	"usr/bin/ruby|Ruby（OpenClash 依赖）" \
 	"sbin/sysupgrade|sysupgrade 本体" \
@@ -279,10 +285,39 @@ for f in "usr/sbin/cnc-upgrade|在线升级脚本" \
          "etc/init.d/msd_lite|msd_lite 服务脚本" \
          "etc/init.d/bandix|Bandix 服务脚本" \
          "etc/uci-defaults/99-zz-cnc-defaults|首启收尾脚本" \
+         "etc/init.d/ap_modem|ap_modem 服务脚本" \
+         "etc/hotplug.d/iface/99-ap-modem|ap_modem 防火墙兜底脚本" \
          ; do
 	p="${f%%|*}"; d="${f##*|}"
 	[ -x "$MNT2/$p" ] && ok "$d 可执行" || bad "$d 没有可执行位（$p）"
 done
+
+sec "rootfs：luci-app-ap-modem（从内网访问 WAN 侧光猫）"
+# ★ 内容哨兵：防火墙重载补丁 ★
+# 上游 init 脚本只做 `uci commit firewall` + `network reload`、**从不重载防火墙**，
+# 于是 firewall 配置写进去了、nft 规则集还是旧的：srcnat 链里 masquerade 的
+# oifname 只有 "pppoe-wan"，去光猫的包完全不做 SNAT ⇒ 症状是**路由器自己能
+# ping 通光猫、内网客户端打不开后台**（= iStoreOS 上游 issue #2613）。
+# 这个补丁一旦被"照上游重新同步文件"冲掉，功能会**静默**失效且离线校验看不出来，
+# 所以在镜像里钉一个内容哨兵（同理见 files/ 那份 keep.d 的写法）。
+grep -q '/etc/init.d/firewall reload' "$MNT2/etc/init.d/ap_modem" 2>/dev/null \
+	&& ok "ap_modem 的防火墙重载补丁在位" \
+	|| bad "/etc/init.d/ap_modem 缺少 '/etc/init.d/firewall reload' —— 内网将访问不了光猫"
+# 第二个补丁：boot() 里必须有 start_service。
+# 上游的 boot() 只有一个空的 `rc_procd true`，而它的 service_triggers 挂的是
+# /etc/config/network 的 config.change —— 全新刷机首启没人 commit 它，
+# 于是 generate_config 永远不会被调用：**包装上了、功能不生效**，得手工开关一次才活。
+awk '/^boot\(\)/,/^}/' "$MNT2/etc/init.d/ap_modem" 2>/dev/null | grep -q 'start_service' \
+	&& ok "ap_modem 的 boot() 补丁在位（否则全新刷机后功能不生效）" \
+	|| bad "/etc/init.d/ap_modem 的 boot() 里没有 start_service —— 全新刷机后 ap_modem 不会生效"
+# 默认必须是启用的：本机光猫就桥在 eth0 上，镜像里关着等于这个功能没做。
+# ipaddr 只在"全新刷写"时生效（conffile，升级时设备上的值优先）。
+grep -q "option enabled '1'" "$MNT2/etc/config/ap_modem" 2>/dev/null \
+	&& ok "ap_modem 默认已启用" \
+	|| bad "/etc/config/ap_modem 的 enabled 不是 '1' —— 全新刷机后功能不会生效"
+grep -q "list ipaddr '192.168.1.254'" "$MNT2/etc/config/ap_modem" 2>/dev/null \
+	&& ok "ap_modem 默认虚拟 IP = 192.168.1.254（光猫网段）" \
+	|| bad "/etc/config/ap_modem 缺 'list ipaddr 192.168.1.254' —— 内网到不了 192.168.1.1"
 
 sec "rootfs：Lucky（r4 起走作者发布的三个预编译 apk：核心 + LuCI + 中文包）"
 # ★ 这里只能看"文件在不在、默认值对不对"★
@@ -457,7 +492,7 @@ if [ -n "$KDIR" ]; then
 		|| bad "内核版本 $kv 与 versions.env 的 $OPENWRT_KVER 不一致"
 	# nft_tproxy 是 OpenClash UDP 透明代理的硬依赖（它不写在 apk 依赖里，靠 init 脚本 modprobe），
 	# 缺了会出现"只有 TCP 走代理、UDP/QUIC/DNS 直连"这种很难发现的降级。
-	for m in wireguard igc tun nft_tproxy inet_diag zram; do
+	for m in wireguard igc tun nft_tproxy inet_diag veth zram; do
 		find "$KDIR" -name "${m}.ko*" | grep -q . && ok "kmod: ${m}.ko" || bad "缺少内核模块 ${m}.ko"
 	done
 else
@@ -467,13 +502,13 @@ fi
 sec "rootfs：已安装包清单（apk）"
 if [ -f "$MNT2/etc/apk/world" ]; then
 	for p in luci-app-openclash lucky luci-app-lucky msd_lite luci-app-msd_lite vlmcsd \
-	         luci-app-vlmcsd luci-app-cnc-upgrade bandix luci-app-bandix \
+	         luci-app-vlmcsd luci-app-cnc-upgrade luci-app-ap-modem bandix luci-app-bandix \
 	         luci-theme-argon luci-app-argon-config \
 	         luci-i18n-bandix-zh-cn luci-i18n-argon-config-zh-cn luci-i18n-base-zh-cn \
 	         luci-i18n-firewall-zh-cn luci-i18n-upnp-zh-cn \
 	         luci-i18n-msd_lite-zh-cn luci-i18n-vlmcsd-zh-cn luci-i18n-lucky-zh-cn \
 	         miniupnpd-nftables luci-app-upnp pciutils usbutils nvme-cli iperf3 tcpdump mtr-json luci-proto-wireguard wireguard-tools kmod-wireguard \
-	         kmod-nft-tproxy kmod-inet-diag \
+	         kmod-nft-tproxy kmod-inet-diag kmod-veth \
 	         kmod-igc dnsmasq-full luci-proto-ipv6 odhcpd-ipv6only zram-swap; do
 		grep -qx "$p" "$MNT2/etc/apk/world" && ok "已安装 $p" || bad "清单里没有 $p"
 	done
