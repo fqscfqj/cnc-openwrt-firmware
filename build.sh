@@ -13,7 +13,7 @@
 #
 # 阶段说明：
 #   preflight 环境与依赖自检        tools    下载并校验 SDK / ImageBuilder
-#   sources   按 commit 拉第三方源   packages 用 SDK 编 5 个包（+2 个中文语言包）
+#   sources   按 commit 拉第三方源   packages 用 SDK 编 6 个包（+2 个中文语言包）
 #   image     组装镜像               verify   离线校验（GPT/挂载/包清单）
 #   smoke     QEMU 冒烟（可选）
 # =============================================================================
@@ -220,7 +220,7 @@ stage_sources() {
 	fi
 	log "更新 feeds（首次约需数分钟）…"
 	./scripts/feeds update -a >/dev/null 2>&1 || die "feeds update 失败"
-	./scripts/feeds install -a >/dev/null 2>&1 || warn "feeds install 有部分失败（不影响我们这 5 个包）"
+	./scripts/feeds install -a >/dev/null 2>&1 || warn "feeds install 有部分失败（不影响我们这 6 个包）"
 	[ -f "$SDK/feeds/luci/luci.mk" ] || die "缺少 feeds/luci/luci.mk，LuCI 插件无法编译"
 	cd "$HERE"
 	make -C "$SDK" defconfig >/dev/null 2>&1 || true
@@ -261,7 +261,7 @@ stage_sources() {
 # 校验强度和 openclash / bandix 完全一致，且不需要碰上游任何 Makefile。
 
 stage_packages() {
-	stage "packages：用 SDK 编译 5 个包（含 2 个中文语言包）"
+	stage "packages：用 SDK 编译 6 个包（+2 个中文语言包）"
 	mkdir -p "$IB/packages"
 	# 清掉上一次运行留下的 apk：否则数量断言会失真，旧的同名包还可能被 apk 当成候选
 	rm -f "$IB/packages"/*.apk "$IB/packages"/packages.adb 2>/dev/null || true
