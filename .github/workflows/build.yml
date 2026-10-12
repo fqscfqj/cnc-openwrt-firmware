@@ -9,12 +9,18 @@ name: build-firmware
 #     读取的 URL 永久不变。
 #   * 按版本 Release（tag 形如 v25.12.5-r1）⇒ 便于回滚到任意旧版本。
 #
+# ★ 触发方式（2026-10 改）★
+# 只支持**手动触发**：Actions → build-firmware → Run workflow。
+# 原先还监听 push（改动 versions.env / build.sh / files / pkgs / tests 时自动跑），
+# 已去掉 —— 构建（以及随之而来的发布）现在必须是一个显式动作，改仓库不会顺手
+# 把固件发到 firmware-latest 上。
+#
 # ★ 发布门禁（2026-10 加）★
-# 推送到 main 的构建**一律**跑 QEMU 冒烟，并且发布步骤前置了一道"必须有通过的
-# 冒烟证据"的检查。原因：离线校验（verify.sh）看不到"进系统跑完 uci-defaults
-# 之后的配置"，而本工程历史上抓到的真 bug（wan_6 没进 zone、add_list 重复、
-# IPTV 503、tproxy 静默降级）全都是只有起机才暴露的类型。此前冒烟是手动勾选项、
-# 默认关闭，于是"发布出去的镜像从没起过机"是可能的（也确实发生过）。
+# 每次构建**一律**跑 QEMU 冒烟，并且发布步骤前置了一道"必须有通过的冒烟证据"的
+# 检查。原因：离线校验（verify.sh）看不到"进系统跑完 uci-defaults 之后的配置"，
+# 而本工程历史上抓到的真 bug（wan_6 没进 zone、add_list 重复、IPTV 503、tproxy
+# 静默降级）全都是只有起机才暴露的类型。此前冒烟是可选勾选项、默认关闭，于是
+# "发布出去的镜像从没起过机"是可能的（也确实发生过）。
 # 手动触发时可以用 run_smoke=false 关掉（例如只为调试构建），但那样流水线会在
 # 发布门禁那一步**失败**，不会把未经冒烟的镜像推到 firmware-latest。
 #
@@ -35,19 +41,9 @@ on:
         required: false
         default: ''
       run_smoke:
-        description: '跑 QEMU 冒烟测试（约 5–15 分钟）。★推送到 main 时强制开启★'
+        description: '跑 QEMU 冒烟测试（约 5–15 分钟）。关掉会让「发布门禁」失败'
         type: boolean
         default: true
-  push:
-    branches: [ main ]
-    paths:
-      - 'versions.env'
-      - 'build.sh'
-      - 'verify.sh'
-      - 'files/**'
-      - 'pkgs/winsrc/local/**'
-      - 'tests/**'
-      - '.github/workflows/build.yml'
 
 permissions:
   contents: write
@@ -61,8 +57,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
-      # push → 一律冒烟；workflow_dispatch → 听输入（默认 true）
-      RUN_QEMU_SMOKE: ${{ github.event_name == 'workflow_dispatch' && (inputs.run_smoke && '1' || '0') || '1' }}
+      # 只有手动触发这一条路径，冒烟与否完全听输入（默认 true）
+      RUN_QEMU_SMOKE: ${{ inputs.run_smoke && '1' || '0' }}
 
     steps:
       - name: 检出
@@ -152,8 +148,7 @@ jobs:
       # ★ 分支门禁（2026-10 加）★
       # workflow_dispatch 可以在**任意 ref** 上触发，而下面三个发布步骤原先没有分支
       # 判断 —— 在分支上手动跑一次就会真的覆盖 firmware-latest、并建出一个与分支内容
-      # 对应的版本 Release，而 push 触发器又只监听 main（推分支根本不会跑 CI）。
-      # 两件事叠起来就是："想拿分支验一下构建，结果把固件发出去了"。
+      # 对应的版本 Release。那正是"想拿分支验一下构建，结果把固件发出去了"。
       # 加这道门禁之后：main 上行为完全不变；分支上只跑「构建 + 离线校验 + 冒烟」，
       # 一个 Release 都不碰 —— 这正是"先推分支、验过再合"要的语义。
       # 门禁步骤本身也必须一起挡：它的职责是"没有通过的冒烟证据就不许发布"，

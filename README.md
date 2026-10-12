@@ -33,7 +33,8 @@ OPENWRT_VERSION=25.12.7
 FIRMWARE_BUILD=r2
 ```
 
-重跑 `bash build.sh`（或 push 让 GitHub Actions 自动构建并发布），
+重跑 `bash build.sh`（本地），或在 GitHub 仓库 **Actions → build-firmware → Run workflow**
+手动触发构建并发布（工作流不再由 push 自动触发），
 然后在路由器 **LuCI → 系统 → 固件在线升级** 点「检查更新 → 下载并校验 → 刷写并重启」。
 
 > ★ **跨 OpenWrt 版本时必须一起改的还有**（只改上面两个值会构建失败，不是静默出错）★

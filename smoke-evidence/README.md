@@ -14,9 +14,9 @@
 
 现在改成两道措施：
 
-1. **推送到 main 的构建一律跑冒烟**（`.github/workflows/build.yml` 里
-   `RUN_QEMU_SMOKE` 对 push 固定为 `1`；手动触发时默认 `true`，可以关掉，
-   但关掉之后发布步骤会失败）。
+1. **每次构建一律跑冒烟**（`.github/workflows/build.yml` 里 `RUN_QEMU_SMOKE` 直接取
+   `run_smoke` 输入，默认为 `true`；关掉之后发布步骤会失败）。构建只支持手动触发
+   （Actions → build-firmware → Run workflow），不存在"顺手 push 一下就发布"的路径。
 2. **发布步骤前有一道「发布门禁」**：`out/qemu-smoke-results.txt` 必须存在，
    且 `checks_fail=0`、`checks_timeout=0`、`checks_pass>0`。不满足就不许
    覆盖 `firmware-latest`。
