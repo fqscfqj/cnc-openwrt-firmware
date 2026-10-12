@@ -1,0 +1,31 @@
+# luci-app-ap-modem 默认配置（CncTion 1338NP-12）
+#
+# ★ 相对上游的改动 ★
+#   上游出厂是**不启用**的（enabled '0'，lan/wan 两处 ipaddr 都注释掉，让用户
+#   自己在 LuCI 里填）。本工程按本机固定拓扑直接给出可用默认值 —— 本机 eth0 是
+#   WAN(PPPoE)，光猫桥接在其上、管理地址固定 192.168.1.1，不开这个插件内网就
+#   够不到光猫后台。
+#
+#   wan list ipaddr '192.168.1.254'
+#       取 .254：与光猫的 .1 不同即可，且该网段（光猫的管理网段）上只有光猫一台
+#       设备，不会撞上别的机器。插件内部还有一道冲突检测（见 init 脚本的
+#       black_ip / ipcalc 那段），会跳过与本机 lan 网段重叠的取值。
+#
+#   lan 那一段保持空
+#       那是"上游 AP 挂在本机 LAN 口"的场景（配一个能被 br-lan 直接 ARP 到、
+#       但防火墙算 WAN 区域的 veth 虚拟地址）。本机没有这个设备，留空即可。
+#       注意：即使留空，插件的 generate_config 仍会无条件建出那对 veth ——
+#       这就是 Makefile 里必须依赖 kmod-veth 的原因（上游漏声明了它）。
+#
+# 本文件是 conffile（见 Makefile 的 conffiles）：升级时设备上的旧文件会覆盖
+# 镜像里的这一份，所以操作者在 LuCI 里改过的值不会被下次刷机冲掉。
+# 下面的 sysupgrade 实测同样印证：base-files 的 keep.d 里含整个 /etc/config/，
+# `sysupgrade -l` 会列出 /etc/config/ap_modem，无需再进 99-cnc-plugins。
+
+config ap_modem 'config'
+	option enabled '1'
+
+config interface 'lan'
+
+config interface 'wan'
+	list ipaddr '192.168.1.254'

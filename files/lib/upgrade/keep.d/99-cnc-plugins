@@ -9,8 +9,10 @@
 #   /etc/openclash         OpenClash 配置、订阅、规则集、Clash 内核
 #   /etc/lucky             Lucky 运行数据
 #   /etc/config/lucky.daji Lucky 自带 Web 界面的配置目录
-#                          （lucky 的 Makefile 里 LUCKY_CONF_DIR 指到这里，
-#                            该目录不在 /etc/config 的常规 conffile 覆盖范围内）
+#                          （lucky 包里的 init 脚本认这个默认值：r4 起用的是作者发布的
+#                            apk，其 DEFAULT_CONFIG_DIR 与 /etc/config/lucky 的
+#                            `option configdir` 都指向这里；该目录不在 /etc/config 的
+#                            常规 conffile 覆盖范围内，只能在这里登记）
 #   /etc/msd_lite          msd_lite 配置目录（含 msd_lite.conf.sample）
 #   Bandix 无需在此登记：bandix 包自带 /lib/upgrade/keep.d/bandix，登记 /usr/share/bandix
 #   WireGuard 无需在此登记：私钥与 peer 都在 /etc/config/network（conffile）

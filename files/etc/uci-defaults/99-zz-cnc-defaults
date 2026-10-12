@@ -216,9 +216,45 @@ if [ -s /etc/cnc-root-hash ]; then
 	fi
 fi
 
+# ------------------------------------------------------------------ 升级迁移
+# ★ 为什么需要这一段（2026-10-03 真机踩坑）★
+# files/etc/config/* 里的改动**只在全新安装时生效**：升级时设备上的旧文件会把镜像里的
+# 新文件覆盖回去。真机 `sysupgrade -l` 实测包含下面两个，所以 r2 的两处改动都没到老设备：
+#   * /etc/config/system   ← 来源 /lib/upgrade/keep.d/base-files
+#     log_size 从 128 提到 512：镜像里是 512（全新安装也是 512），
+#     但升级后的真机仍是 128 —— 旧配置把它盖回去了。
+#   * /etc/sysupgrade.conf ← 来源 base-files 的 conffiles_static（第 16 行）
+#     注释更新同样到不了老设备（纯注释、无功能影响，但别指望它能"修文档"）。
+# 结论：凡是"想让老设备也吃到"的取值改动，都必须在这里做**幂等迁移**，
+#       不能只改 files/etc/config/*（那段只服务全新安装）。
+# 下面这行标记串被 verify.sh 当哨兵盯着，删掉它会让同类回归重新溜过 CI。
+# cnc-migrate:system-log-size
+MIG_LOG_SIZE=512
+if uci -q get system.@system[0] >/dev/null 2>&1; then
+	cur_log_size="$(uci -q get system.@system[0].log_size)"
+	case "$cur_log_size" in
+		"$MIG_LOG_SIZE")
+			: # 全新安装就是 512，无需动作
+			;;
+		""|128)
+			# 只迁移"上游默认值 / 空值"，不覆盖操作者自己调过的值
+			uci set system.@system[0].log_size="$MIG_LOG_SIZE"
+			logger -t cnc-defaults "升级迁移：system.log_size $cur_log_size → $MIG_LOG_SIZE（旧值来自被保留的 /etc/config/system）"
+			[ "$(uci -q get system.@system[0].log_size)" = "$MIG_LOG_SIZE" ] \
+				|| fail "system.log_size 迁移失败（期望 $MIG_LOG_SIZE）"
+			;;
+		*)
+			logger -t cnc-defaults "system.log_size=$cur_log_size（非默认值，视为操作者自定义，保持不动）"
+			;;
+	esac
+else
+	fail "找不到 system.@system[0] —— /etc/config/system 异常，log_size 无法迁移"
+fi
+
 uci -q commit firewall || fail "uci commit firewall 失败"
 uci -q commit dhcp     || fail "uci commit dhcp 失败"
 uci -q commit luci     || fail "uci commit luci 失败"
+uci -q commit system   || fail "uci commit system 失败"
 
 # ------------------------------------------------------------------ 结果
 # 有失败就非 0 退出 ⇒ base-files 会保留本文件，下次开机重试（见文件头说明）

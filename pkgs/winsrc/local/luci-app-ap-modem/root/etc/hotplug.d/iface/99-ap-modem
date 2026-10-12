@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# ap-modem 兜底：确保 fw4 知道 eth0 属于 WAN 区域。
+#
+# 为什么需要它（本文件的定位是"网络"，不是重复劳动）：
+#   OpenWrt 的启动顺序是 S19firewall → S20network。fw4 在 S19 启动时 netifd 还没
+#   跑，`ubus call network.interface dump` 是空的，任何接口都解析不出设备；
+#   之后靠 /etc/hotplug.d/iface/20-firewall 在**每个接口 ifup 时**重载一次来补齐。
+#   也就是说"最后一次 ifup 触发的重载"决定了最终规则集里有哪些设备。
+#
+#   2026-10 真机实测踩到过：ap_modem 首次 start 时 vap_wan 起来了，但那一刻的重载
+#   没把 eth0 算进 wan zone（`srcnat` 里只有 "pppoe-wan"），此后没有任何接口事件，
+#   规则集就一直停在错的状态 —— 表现为"路由器能 ping 通光猫、内网客户端不能"。
+#
+#   所以这里只做一件 20-firewall 做不到的事：**校验结果**。
+#   不是无脑再重载一次（每次 fw4 reload 在本机要 ~10 秒，本机规则集很大），
+#   而是先看 srcnat 链里到底有没有 eth0，缺了才补一次。
+#
+[ "$ACTION" = "ifup" ] || exit 0
+[ "$INTERFACE" = "vap_wan" ] || exit 0
+
+nft list chain inet fw4 srcnat 2>/dev/null | grep -q '"eth0"' && exit 0
+
+logger -t ap-modem "fw4 的 wan zone 里缺 eth0（去光猫的流量不会做 SNAT），补一次 reload"
+fw4 -q reload

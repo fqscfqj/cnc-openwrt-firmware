@@ -58,6 +58,7 @@ ver_from_env() { # <KEY>
 }
 SMOKE_OWRT_VER="$(ver_from_env OPENWRT_VERSION)"
 SMOKE_KVER="$(ver_from_env OPENWRT_KVER)"
+SMOKE_LUCKY_VERSION="$(ver_from_env LUCKY_VERSION)"
 SMOKE_FWNAME="$(ver_from_env FIRMWARE_NAME)"
 [ -n "$SMOKE_OWRT_VER" ] && [ -n "$SMOKE_KVER" ] && [ -n "$SMOKE_FWNAME" ] \
 	|| die "无法确定版本号（环境变量与 versions.env 都没给）"
@@ -289,6 +290,25 @@ x|openclash_tproxy_loads|modprobe nft_tproxy 2>/dev/null; lsmod | grep -q "^nft_
 x|openclash_inet_diag_ko|find /lib/modules -name "inet_diag.ko*" | grep -q .
 x|lucky_init|test -x /etc/init.d/lucky
 c|lucky_bin|test -x /usr/bin/lucky
+# --- Lucky（r4 起 = 作者发布的三个预编译 apk：核心 + LuCI 3.0.0 + 中文包）---
+# ★ 这几条是"离线校验做不到"的那一半 ★：apk 的已安装数据库是 ADB 二进制格式，
+#   verify.sh 只能看文件在不在；这里真的把二进制跑起来问版本与架构，
+#   才能证明"装进镜像的核心就是 versions.env 里钉的那个版本/架构"。
+#   换预编译包却忘了改 LUCKY_VERSION 时，lucky_core_version 会当场挂。
+x|lucky_call_helper|test -x /usr/libexec/lucky-call
+x|lucky_arch_file|test "$(cat /usr/share/lucky/arch)" = x86_64
+x|lucky_call_arch|test "$(/usr/libexec/lucky-call arch)" = x86_64
+x|lucky_core_version|/usr/libexec/lucky-call info 2>/dev/null | grep -q "@LUCKY_VERSION@"
+# LuCI 3.0.0 页面调 lucky-call 读配置（-baseConfInfo）—— 它能回答就说明"核心 + 助手 +
+# 配置目录"这条链路是通的（§7.8 的降级故障正是死在这一步）。
+x|lucky_call_base|/usr/libexec/lucky-call base 2>/dev/null | grep -q AdminWebListenPort
+x|lucky_call_status_answers|/usr/libexec/lucky-call status 2>/dev/null | grep -qxE "true|false"
+x|lucky_uci_configdir|test "$(uci -q get lucky.@lucky[0].configdir)" = /etc/config/lucky.daji
+x|lucky_uci_enabled|uci -q get lucky.@lucky[0].enabled | grep -qx 1
+# 服务真的在跑：这是"刷完机 Lucky 能用"的最终判据（§7.8：降级后会 panic 到 procd 放弃）。
+# 万一这条在 CI 里偶发失败，先看 logread 里有没有 panic/unsupport encryption type ——
+# 那是真问题（核心与配置不兼容），不是抖动。
+x|lucky_running|pidof lucky
 x|msd_lite_init|test -x /etc/init.d/msd_lite
 c|msd_lite_bin|test -x /usr/bin/msd_lite
 x|vlmcsd_init|test -x /etc/init.d/vlmcsd
@@ -330,8 +350,8 @@ x|tool_iperf3|command -v iperf3
 x|tool_tcpdump|command -v tcpdump
 x|tool_mtr|command -v mtr
 # --- 中文语言包：LuCI 每个 app 有独立 .lmo，只装 base 时其它页面仍是英文。
-#     逐个 app 断言，尤其自编的 msd_lite/vlmcsd/lucky（它们的语言包不来自官方源，
-#     最容易被构建脚本丢掉，见 §7.5 / §9）。---
+#     逐个 app 断言，尤其自编的 msd_lite/vlmcsd（它们的语言包不来自官方源，
+#     最容易被构建脚本丢掉，见 §7.5 / §9；lucky 的语言包自 r4 起随核心走预编译 apk）。---
 x|i18n_base_zh_cn|find /usr -name "base.zh-cn.lmo" 2>/dev/null | grep -q .
 x|i18n_firewall_zh_cn|find /usr -name "firewall.zh-cn.lmo" 2>/dev/null | grep -q .
 x|i18n_upnp_zh_cn|find /usr -name "upnp.zh-cn.lmo" 2>/dev/null | grep -q .
@@ -353,6 +373,26 @@ c|cnc_upgrade_view|test -f /www/luci-static/resources/view/cnc_upgrade/upgrade.j
 c|cnc_upgrade_keepd|test -f /lib/upgrade/keep.d/99-cnc-plugins
 c|cnc_release_file|test -s /etc/cnc-release
 x|cnc_upgrade_usage|/usr/sbin/cnc-upgrade --help 2>&1 | grep -q 用法
+# --- 访问光猫（luci-app-ap-modem）★ 这一组正是"离线校验看不到的那一半" ★ ---
+# 本工程在这个插件上踩到两个**只有起机才暴露**的真缺陷，所以这里刻意不看
+# "文件在不在"，而看**功能到底生效没有**：
+#   ① 上游 init 脚本从不重载防火墙 ⇒ nft 里 masquerade 的 oifname 少了 eth0
+#      ⇒ 症状是"路由器自己能 ping 通光猫、内网客户端打不开"（= 上游 issue #2613）。
+#   ② 上游 boot() 是个空的 rc_procd true ⇒ 全新刷机首启没人调用 generate_config
+#      ⇒ 包装上了却完全不生效，得手工去 LuCI 里开关一次才活。
+# 对应关系：ap_modem_eth0_vip / ap_modem_iface_up 守 ②，ap_modem_masq_eth0 守 ①。
+x|ap_modem_pkg|apk list --installed 2>/dev/null | grep -q "^luci-app-ap-modem"
+x|ap_modem_kmod_veth|apk list --installed 2>/dev/null | grep -q "^kmod-veth"
+x|ap_modem_veth_ko|find /lib/modules -name "veth.ko*" | grep -q .
+c|ap_modem_menu|test -f /usr/share/luci/menu.d/luci-app-ap-modem.json
+c|ap_modem_acl|test -f /usr/share/rpcd/acl.d/luci-app-ap-modem.json
+c|ap_modem_view|test -f /www/luci-static/resources/view/ap_modem.js
+c|ap_modem_hotplug|test -x /etc/hotplug.d/iface/99-ap-modem
+x|ap_modem_i18n|find /usr -name "ap-modem.zh-cn.lmo" 2>/dev/null | grep -q .
+x|ap_modem_veth_dev|ip -br link 2>/dev/null | grep -q "vap-lan"
+x|ap_modem_iface_up|ubus call network.interface.vap_wan status 2>/dev/null | grep -qE '"up": *true'
+x|ap_modem_eth0_vip|ip -4 addr show eth0 2>/dev/null | grep -q "192.168.1.254"
+x|ap_modem_masq_eth0|nft list chain inet fw4 srcnat 2>/dev/null | grep -q '"eth0"'
 # --- 内核模块与运行时 ---
 x|kmod_igc_ko|find /lib/modules -name "igc.ko*" | grep -q .
 x|kmod_tun_ko|find /lib/modules -name "tun.ko*" | grep -q .
@@ -389,6 +429,7 @@ sed -i \
 	-e "s|@OPENWRT_VERSION@|$SMOKE_OWRT_VER|g" \
 	-e "s|@KVER@|$SMOKE_KVER|g" \
 	-e "s|@FWNAME@|$SMOKE_FWNAME|g" \
+	-e "s|@LUCKY_VERSION@|$SMOKE_LUCKY_VERSION|g" \
 	"$WORK/checks.txt"
 
 cat > "$WORK/driver.py" <<'PYEOF'
@@ -480,7 +521,18 @@ def text():
     return raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
+MAX_CMD = 480  # 串口单行上限（实测约 510 字节），留出余量
 def send(cmd):
+    # ★ 长度硬闸 ★（2026-10-11 加）串口控制台的行编辑缓冲区约 512 字节，超出部分
+    # **被静默截断**：shell 会停在续行提示符上等输入，之后每条断言都变成 TIMEOUT，
+    # 根因极难看出来（r4 的就绪门 529 字符就是这么把整场冒烟废掉的）。
+    if len(cmd) > MAX_CMD:
+        sys.stderr.write(
+            "FATAL: 串口命令长 %d 字节，超过上限 %d。串口行编辑缓冲区约 512 字节，"
+            "超出会被**静默截断**（shell 停在续行提示符，之后断言全部 TIMEOUT）。"
+            "请把这条命令改短。\n" % (len(cmd), MAX_CMD))
+        sys.stderr.write("  命令开头: %s\n" % cmd[:120])
+        sys.exit(2)
     sock.sendall((cmd + "\n").encode())
 
 
@@ -590,27 +642,35 @@ print("  ✔ 串口 shell 可执行命令")
 # wait_boot() 只保证"控制台能用了"，那可能远早于系统配置完成：有一批断言读的就是首启
 # 脚本跑完之后的状态（hostname、/etc/uci-defaults 是否清空、firewall 的 iptv zone、
 # dhcp.lan 的 dhcpv6/ra、msd_lite 的配置与进程…）。早问一句就是假失败。
-# 这里等三件事：uci-defaults 已清空 + hostname 已生效 + msd_lite 已在跑（S99 服务阶段
-# 的代表 —— 纯软件模拟下它能比 uci-defaults 晚很久）。超时也**继续**跑断言，让真正的
+# 这里等四件事：uci-defaults 已清空 + hostname 已生效 + msd_lite 已在跑（S99 服务阶段
+# 的代表 —— 纯软件模拟下它能比 uci-defaults 晚很久）+ lucky 已在跑（同理，且后面有
+# lucky_running 断言，不等它就变成跟启动赛跑）。超时也**继续**跑断言，让真正的
 # 问题以断言名暴露，而不是变成一句笼统超时；所以这道门不会掩盖首启脚本的真失败。
 # ★ 命令里绝对不能用 `exit` ★：那是串口上的登录 shell，exit 会连 askfirst 控制台一起
 #   干掉，之后所有断言都"无响应"（run #17 就是这么把 4 条时序失败变成 3 条超时的）。
+# ★★ 而且这道门必须**短** ★★ 串口控制台的行编辑缓冲区只有约 512 字节（OpenWrt
+#   busybox 的 CONFIG_FEATURE_EDITING_MAX_LEN），**超出的部分被静默截断** —— 症状是
+#   shell 停在续行提示符 '>' 上等输入，之后每一条断言都变成 TIMEOUT，完全看不出根因。
+#   2026-10-11 实测：463 字符（r2/r3 那道门）是通的；r4 往门里加了 pidof lucky 与
+#   diag 里的 lucky=[...] 之后涨到 529 字符，在第 510 字符处被砍掉，冒烟整场失效。
+#   所以下面刻意用短写法（省掉重复的 2>/dev/null、diag 用短标签），实长 ~435 字符。
+#   driver.py 的 send() 里另有一道硬闸（MAX_CMD），以后再加东西越线会立刻报错。
 _ready_cmd = (
     "ok=0; i=0; while [ $i -lt %d ]; do "
-    "if [ -z \"$(ls /etc/uci-defaults 2>/dev/null)\" ] && "
+    "[ -z \"$(ls /etc/uci-defaults 2>/dev/null)\" ] && "
     "[ \"$(cat /proc/sys/kernel/hostname)\" != '(none)' ] && "
-    "pidof msd_lite >/dev/null 2>&1; then ok=1; break; fi; "
+    "pidof msd_lite >/dev/null && pidof lucky >/dev/null && { ok=1; break; }; "
     "sleep 2; i=$((i+1)); done; "
     "if [ \"$ok\" = 1 ]; then echo @@READY@@; else echo @@NOTREADY@@; "
-    "echo \"  diag: uci-defaults=[$(ls /etc/uci-defaults 2>/dev/null | tr '\\n' ' ')] "
-    "hostname=$(cat /proc/sys/kernel/hostname 2>/dev/null) "
-    "msd_lite=[$(pidof msd_lite 2>/dev/null)]\"; fi"
+    "echo \"  diag: ud=[$(ls /etc/uci-defaults 2>/dev/null)] "
+    "hn=$(cat /proc/sys/kernel/hostname) "
+    "ml=$(pidof msd_lite) lk=$(pidof lucky)\"; fi"
 ) % int(READY_TIMEOUT / 2)
 _mark = len(text())
 send(_ready_cmd)
 _m = wait_re(r"^@@(READY|NOTREADY)@@", READY_TIMEOUT + 90, since=_mark)
 if _m and _m.group(1) == "READY":
-    print("  ✔ 首启配置与服务已就绪（uci-defaults 已清空、hostname 已设置、msd_lite 在跑）")
+    print("  ✔ 首启配置与服务已就绪（uci-defaults 已清空、hostname 已设置、msd_lite 与 lucky 在跑）")
 else:
     # 把串口那边打回来的诊断行捞出来打到 CI 日志里（否则只躺在 serial.log artifact 里）
     _diag = re.findall(r"^\s*diag: .*$", text(), re.M)
